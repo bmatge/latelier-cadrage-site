@@ -5,16 +5,18 @@
 
 import { Router } from 'express';
 import multer from 'multer';
+import express from 'express';
 import { authorize } from '../middleware/authorize.js';
-import { generateCadrage } from '../controllers/cadrage.controller.js';
+import { generateCadrage, refineCadrage } from '../controllers/cadrage.controller.js';
 import { AppError } from '../domain/errors.js';
 import { createAlbertFromEnv } from '../services/albert.service.js';
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_FILES = 5;
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_FILE_BYTES, files: 1 },
+  limits: { fileSize: MAX_FILE_BYTES, files: MAX_FILES },
 });
 
 export function makeCadrageRouter(): Router {
@@ -30,6 +32,8 @@ export function makeCadrageRouter(): Router {
       enabled: true,
       configured: cfg !== null,
       model: cfg?.model ?? null,
+      maxFiles: MAX_FILES,
+      maxFileMiB: MAX_FILE_BYTES / 1024 / 1024,
     });
   });
 
@@ -37,13 +41,23 @@ export function makeCadrageRouter(): Router {
     '/cadrage/generate',
     authorize('project:import', 'global'),
     (req, res, next) => {
-      upload.single('file')(req, res, (err: unknown) => {
+      upload.array('files', MAX_FILES)(req, res, (err: unknown) => {
         if (err) {
-          if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-            next(
-              new AppError(413, 'file_too_large', `Fichier > ${MAX_FILE_BYTES / 1024 / 1024} MiB`),
-            );
-            return;
+          if (err instanceof multer.MulterError) {
+            if (err.code === 'LIMIT_FILE_SIZE') {
+              next(
+                new AppError(
+                  413,
+                  'file_too_large',
+                  `Fichier > ${MAX_FILE_BYTES / 1024 / 1024} MiB`,
+                ),
+              );
+              return;
+            }
+            if (err.code === 'LIMIT_FILE_COUNT') {
+              next(new AppError(413, 'file_too_large', `Plus de ${MAX_FILES} fichiers`));
+              return;
+            }
           }
           next(err);
           return;
@@ -52,6 +66,18 @@ export function makeCadrageRouter(): Router {
       });
     },
     generateCadrage,
+  );
+
+  // Affinage post-génération : le client renvoie le bundle déjà produit + une
+  // instruction libre. Le serveur compose un nouveau prompt qui demande à
+  // Albert de modifier ce bundle selon l'instruction, en gardant le reste
+  // intact. Stateless côté serveur : pas de session, le contexte vit dans
+  // les payloads HTTP.
+  router.post(
+    '/cadrage/refine',
+    authorize('project:import', 'global'),
+    express.json({ limit: '5mb' }),
+    refineCadrage,
   );
   return router;
 }

@@ -9,6 +9,8 @@ export interface CadrageStatus {
   readonly enabled: boolean;
   readonly configured: boolean;
   readonly model: string | null;
+  readonly maxFiles?: number;
+  readonly maxFileMiB?: number;
 }
 
 export async function getCadrageStatus(): Promise<CadrageStatus> {
@@ -37,23 +39,32 @@ export interface GenerateResult {
   readonly valid: boolean;
   readonly errors: readonly AjvError[];
   readonly raw: string;
-  readonly extracted: ExtractedDocument;
+  readonly extracted: readonly ExtractedDocument[];
+  readonly extractedFilenames: readonly string[];
   readonly finishReason: string | null;
   readonly usage: unknown;
   readonly latencyMs: number;
 }
 
-export async function generateBundleFromDocument(
-  file: File,
+export async function generateBundleFromDocuments(
+  files: readonly File[],
   instructions?: string,
 ): Promise<GenerateResult> {
+  if (files.length === 0) {
+    throw new Error('Aucun fichier à envoyer.');
+  }
   const form = new FormData();
-  form.append('file', file);
+  for (const file of files) form.append('files', file);
   if (instructions && instructions.trim()) {
     form.append('instructions', instructions.trim());
   }
   const res = await api.post('/cadrage/generate', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
+  return res.data as GenerateResult;
+}
+
+export async function refineBundle(bundle: unknown, instructions: string): Promise<GenerateResult> {
+  const res = await api.post('/cadrage/refine', { bundle, instructions });
   return res.data as GenerateResult;
 }

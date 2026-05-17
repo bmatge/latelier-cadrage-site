@@ -104,7 +104,7 @@ describe('routes cadrage (flag-gating)', () => {
     });
     const res = await agent
       .post('/api/cadrage/generate')
-      .attach('file', Buffer.from('hi'), 'h.txt');
+      .attach('files', Buffer.from('hi'), 'h.txt');
     expect(res.status).toBe(500);
     expect(res.body.error).toBe('albert_not_configured');
   });
@@ -114,7 +114,46 @@ describe('routes cadrage (flag-gating)', () => {
     const fx = await makeFixture();
     const res = await request(fx.app)
       .post('/api/cadrage/generate')
-      .attach('file', Buffer.from('hi'), 'h.txt');
+      .attach('files', Buffer.from('hi'), 'h.txt');
     expect(res.status).toBe(401);
+  });
+
+  it('CADRAGE_ENABLED=1 + multi-files acceptés (au moins 2 fichiers passent multer)', async () => {
+    process.env.CADRAGE_ENABLED = '1';
+    const { loginAs } = await import('./setup.js');
+    const fx = await makeFixture();
+    const agent = await loginAs(fx, 'alice@test.fr', {
+      extraRoles: [{ role: 'editor' as const, projectId: null }],
+    });
+    const res = await agent
+      .post('/api/cadrage/generate')
+      .attach('files', Buffer.from('doc 1'), 'a.txt')
+      .attach('files', Buffer.from('doc 2'), 'b.txt');
+    // Pas de clé Albert → on s'arrête en 500 mais après le passage multer,
+    // ce qui prouve que les 2 fichiers ont été acceptés sans LIMIT_FILE_COUNT.
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('albert_not_configured');
+  });
+
+  it('POST /cadrage/refine → 400 sans bundle, 400 sans instructions, 500 sans Albert key', async () => {
+    process.env.CADRAGE_ENABLED = '1';
+    const { loginAs } = await import('./setup.js');
+    const fx = await makeFixture();
+    const agent = await loginAs(fx, 'alice@test.fr', {
+      extraRoles: [{ role: 'editor' as const, projectId: null }],
+    });
+    const noBundle = await agent.post('/api/cadrage/refine').send({ instructions: 'foo' });
+    expect(noBundle.status).toBe(400);
+    expect(noBundle.body.error).toBe('bundle_required');
+
+    const noInstr = await agent.post('/api/cadrage/refine').send({ bundle: { x: 1 } });
+    expect(noInstr.status).toBe(400);
+    expect(noInstr.body.error).toBe('data_required');
+
+    const ok = await agent
+      .post('/api/cadrage/refine')
+      .send({ bundle: { x: 1 }, instructions: 'change x' });
+    expect(ok.status).toBe(500);
+    expect(ok.body.error).toBe('albert_not_configured');
   });
 });

@@ -5,7 +5,8 @@
 
 import { computed, ref, watch } from 'vue';
 import {
-  generateBundleFromDocument,
+  generateBundleFromDocuments,
+  refineBundle,
   type GenerateResult,
   type CadrageStatus,
 } from '../../api/cadrage.api.js';
@@ -21,54 +22,81 @@ const emit = defineEmits<{
   (e: 'imported', slug: string): void;
 }>();
 
-type Phase = 'idle' | 'generating' | 'result' | 'error';
+type Phase = 'idle' | 'generating' | 'result' | 'error' | 'refining';
 
 const phase = ref<Phase>('idle');
-const file = ref<File | null>(null);
+const files = ref<File[]>([]);
 const instructions = ref('');
+const refineText = ref('');
 const error = ref<string | null>(null);
 const result = ref<GenerateResult | null>(null);
 const importing = ref(false);
-const showRaw = ref(false);
 const importError = ref<string | null>(null);
+
+const maxFiles = computed(() => props.status.maxFiles ?? 5);
+const maxFileMiB = computed(() => props.status.maxFileMiB ?? 10);
 
 watch(
   () => props.open,
   (isOpen) => {
     if (!isOpen) {
       phase.value = 'idle';
-      file.value = null;
+      files.value = [];
       instructions.value = '';
+      refineText.value = '';
       error.value = null;
       result.value = null;
       importing.value = false;
-      showRaw.value = false;
       importError.value = null;
     }
   },
 );
 
-function onFile(event: Event): void {
+function onFiles(event: Event): void {
   const input = event.target as HTMLInputElement;
-  file.value = input.files?.[0] ?? null;
+  if (!input.files) return;
+  const picked = Array.from(input.files).slice(0, maxFiles.value);
+  files.value = picked;
+}
+
+function removeFile(index: number): void {
+  files.value = files.value.filter((_, i) => i !== index);
 }
 
 async function onGenerate(): Promise<void> {
-  if (!file.value) {
-    error.value = 'Sélectionnez un fichier source.';
+  if (files.value.length === 0) {
+    error.value = 'Sélectionnez au moins un fichier source.';
     return;
   }
   phase.value = 'generating';
   error.value = null;
   result.value = null;
   try {
-    result.value = await generateBundleFromDocument(file.value, instructions.value || undefined);
+    result.value = await generateBundleFromDocuments(files.value, instructions.value || undefined);
     phase.value = 'result';
   } catch (err) {
     const e = err as { response?: { data?: { error?: string; detail?: string } } };
     error.value =
       e.response?.data?.detail ?? e.response?.data?.error ?? (err as Error).message ?? 'Erreur';
     phase.value = 'error';
+  }
+}
+
+async function onRefine(): Promise<void> {
+  if (!result.value || result.value.bundle == null) return;
+  if (!refineText.value.trim()) return;
+  phase.value = 'refining';
+  importError.value = null;
+  try {
+    const next = await refineBundle(result.value.bundle, refineText.value);
+    result.value = next;
+    refineText.value = '';
+    phase.value = 'result';
+  } catch (err) {
+    const e = err as { response?: { data?: { error?: string; detail?: string } } };
+    importError.value =
+      e.response?.data?.detail ?? e.response?.data?.error ?? (err as Error).message ?? 'Erreur';
+    phase.value = 'result';
   }
 }
 
@@ -169,24 +197,42 @@ const previewCounts = computed(() => {
         <!-- PHASE 1 : formulaire -->
         <section v-if="phase === 'idle' || phase === 'error'">
           <p class="fr-text--lead">
-            Glissez un document décrivant votre projet (PDF, DOCX, CSV, TXT, MD) ; Albert propose
-            une première arborescence + roadmap + catalogues que vous pourrez importer tels quels ou
-            ajuster ensuite.
+            Glissez un ou plusieurs documents décrivant votre projet (PDF, DOCX, CSV, TXT, MD) ;
+            Albert propose une première arborescence + roadmap + catalogues que vous pourrez
+            importer tels quels ou affiner après coup.
           </p>
 
           <div class="fr-input-group">
             <label class="fr-label" for="cadrage-file">
-              Document source
-              <span class="fr-hint-text">Max 10 MiB. PDF, DOCX, CSV, TSV, TXT ou Markdown.</span>
+              Documents source
+              <span class="fr-hint-text">
+                Jusqu'à {{ maxFiles }} fichiers, {{ maxFileMiB }} MiB chacun. PDF, DOCX, CSV, TSV,
+                TXT ou Markdown.
+              </span>
             </label>
             <input
               id="cadrage-file"
               type="file"
               class="fr-upload"
+              multiple
               accept=".pdf,.docx,.csv,.tsv,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/csv,text/plain,text/markdown"
               :disabled="!status.configured"
-              @change="onFile"
+              @change="onFiles"
             />
+            <ul v-if="files.length > 0" class="cadrage-files">
+              <li v-for="(f, i) in files" :key="f.name + i">
+                <span class="cadrage-files__name">{{ f.name }}</span>
+                <span class="cadrage-files__size"> {{ Math.round(f.size / 1024) }} KiB </span>
+                <button
+                  type="button"
+                  class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-close-line"
+                  aria-label="Retirer ce fichier"
+                  @click="removeFile(i)"
+                >
+                  Retirer
+                </button>
+              </li>
+            </ul>
           </div>
 
           <div class="fr-input-group fr-mt-2w">
@@ -218,7 +264,7 @@ const previewCounts = computed(() => {
             <button
               type="button"
               class="fr-btn fr-icon-magic-line fr-btn--icon-left"
-              :disabled="!file || !status.configured"
+              :disabled="files.length === 0 || !status.configured"
               @click="onGenerate"
             >
               Générer la proposition
@@ -227,10 +273,14 @@ const previewCounts = computed(() => {
         </section>
 
         <!-- PHASE 2 : génération en cours -->
-        <section v-else-if="phase === 'generating'" class="cadrage-modal__loading">
+        <section
+          v-else-if="phase === 'generating' || phase === 'refining'"
+          class="cadrage-modal__loading"
+        >
           <div class="cadrage-spinner" aria-hidden="true"></div>
-          <h3>Albert analyse votre document…</h3>
-          <p>Selon la longueur du document, cela peut prendre 10 à 60 secondes.</p>
+          <h3 v-if="phase === 'generating'">Albert analyse vos documents…</h3>
+          <h3 v-else>Albert applique votre demande d'affinage…</h3>
+          <p>Selon la longueur, cela peut prendre 10 à 60 secondes.</p>
         </section>
 
         <!-- PHASE 3 : résultat -->
@@ -290,8 +340,37 @@ const previewCounts = computed(() => {
             <pre>{{ result.raw }}</pre>
           </details>
 
+          <!-- Bloc affinage : permettre de demander des modifications avant l'import -->
+          <div v-if="result.bundle != null" class="cadrage-refine">
+            <label class="fr-label" for="cadrage-refine">
+              Affiner la proposition (optionnel)
+              <span class="fr-hint-text">
+                Décrivez en français ce que vous voulez changer ; Albert renverra un nouveau bundle
+                en gardant le reste intact.
+              </span>
+            </label>
+            <textarea
+              id="cadrage-refine"
+              v-model="refineText"
+              class="fr-input"
+              rows="2"
+              maxlength="2000"
+              placeholder="Ex. Renomme l'axe 1 en « Logement durable », ajoute un dispositif « Ma Prime Logement »."
+            />
+            <div style="margin-top: 0.5rem; text-align: right">
+              <button
+                type="button"
+                class="fr-btn fr-btn--secondary fr-btn--sm fr-icon-refresh-line fr-btn--icon-left"
+                :disabled="!refineText.trim()"
+                @click="onRefine"
+              >
+                Affiner avec Albert
+              </button>
+            </div>
+          </div>
+
           <div v-if="importError" class="fr-alert fr-alert--error fr-mt-2w">
-            <p>Import impossible : {{ importError }}</p>
+            <p>{{ importError }}</p>
           </div>
 
           <div class="cadrage-modal__actions">
@@ -465,5 +544,44 @@ const previewCounts = computed(() => {
   color: #d4d4d4;
   font-size: 0.8rem;
   line-height: 1.4;
+}
+
+.cadrage-files {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cadrage-files li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  background: #f6f6f6;
+  border: 1px solid #e5e5e5;
+  font-size: 0.9rem;
+}
+
+.cadrage-files__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cadrage-files__size {
+  color: #666;
+  font-variant-numeric: tabular-nums;
+}
+
+.cadrage-refine {
+  margin-top: 1.25rem;
+  padding: 1rem 1.25rem;
+  background: #f6f6f6;
+  border-left: 4px solid #6a6af4;
 }
 </style>

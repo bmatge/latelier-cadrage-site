@@ -76,7 +76,8 @@ export interface GenerateResult {
   readonly valid: boolean;
   readonly errors: readonly AjvValidationError[];
   readonly raw: string;
-  readonly extracted: ExtractedDocument;
+  readonly extracted: readonly ExtractedDocument[];
+  readonly extractedFilenames: readonly string[];
   readonly finishReason: string | null;
   readonly usage: unknown;
   readonly latencyMs: number;
@@ -86,16 +87,81 @@ export interface GenerateInput {
   readonly buffer: Buffer;
   readonly mimetype: string;
   readonly filename: string;
-  readonly instructions?: string;
 }
 
-export async function generateBundleFromDocument(
+export async function generateBundleFromDocuments(
   cfg: AlbertConfig,
-  input: GenerateInput,
+  inputs: readonly GenerateInput[],
+  instructions?: string,
 ): Promise<GenerateResult> {
-  const extracted = await extractDocument(input.buffer, input.mimetype, input.filename);
-  const userMessage = buildUserMessage(extracted, input.instructions);
+  if (inputs.length === 0) {
+    throw new Error('generateBundleFromDocuments: at least one document required');
+  }
+  const extracted = await Promise.all(
+    inputs.map((i) => extractDocument(i.buffer, i.mimetype, i.filename)),
+  );
+  const userMessage = buildUserMessage(extracted, inputs, instructions);
   const completion = await chatCompletion(cfg, SYSTEM_PROMPT, userMessage);
+  return packResult(completion, extracted, inputs);
+}
+
+export interface RefineInput {
+  readonly bundle: unknown;
+  readonly instructions: string;
+}
+
+// Affinage stateless : on rappelle Albert avec le bundle déjà produit + une
+// instruction libre. Le system prompt reste le même (format/contraintes),
+// le user prompt contient le JSON existant + la consigne de modification.
+// Le modèle doit retourner un bundle COMPLET, pas un patch — c'est plus
+// robuste que de gérer des deltas côté serveur.
+export async function refineBundle(cfg: AlbertConfig, input: RefineInput): Promise<GenerateResult> {
+  const bundleJson = JSON.stringify(input.bundle, null, 2);
+  const userMessage = [
+    '# Bundle actuel\n',
+    '```json\n' + bundleJson + '\n```\n',
+    '# Modification demandée\n',
+    input.instructions.trim() + '\n',
+    "---\nRenvoie le bundle JSON COMPLET modifié (pas un patch, pas un diff). Conserve TOUT ce qui n'est pas explicitement modifié par la consigne. Un seul objet JSON, rien autour.",
+  ].join('\n');
+  const completion = await chatCompletion(cfg, SYSTEM_PROMPT, userMessage);
+  return packResult(completion, [], []);
+}
+
+function buildUserMessage(
+  extracted: readonly ExtractedDocument[],
+  inputs: readonly GenerateInput[],
+  instructions: string | undefined,
+): string {
+  const parts: string[] = [];
+  if (instructions && instructions.trim()) {
+    parts.push(`# Consignes additionnelles\n\n${instructions.trim()}\n`);
+  }
+  if (extracted.length === 1) {
+    const e = extracted[0]!;
+    parts.push(
+      `# Document source (${e.format.toUpperCase()}, ${e.charCount} caractères${e.truncated ? ', tronqué' : ''})\n\n${e.text}`,
+    );
+  } else {
+    parts.push(`# ${extracted.length} documents source\n`);
+    extracted.forEach((e, i) => {
+      const name = inputs[i]?.filename ?? `document-${i + 1}`;
+      parts.push(
+        `## ${i + 1}. ${name} (${e.format.toUpperCase()}, ${e.charCount} caractères${e.truncated ? ', tronqué' : ''})\n\n${e.text}\n`,
+      );
+    });
+  }
+  parts.push(
+    "\n---\nProduis maintenant le bundle JSON complet du projet, en t'appuyant sur l'ensemble des documents fournis. Un seul objet JSON, rien autour.",
+  );
+  return parts.join('\n');
+}
+
+function packResult(
+  completion: { raw: string; finishReason: string | null; usage: unknown; latencyMs: number },
+  extracted: readonly ExtractedDocument[],
+  inputs: readonly GenerateInput[],
+): GenerateResult {
   const bundle = extractJsonObject(completion.raw);
   const isValid = bundle != null && validateBundle(bundle);
   const errors: readonly AjvValidationError[] = !isValid
@@ -107,23 +173,11 @@ export async function generateBundleFromDocument(
     errors,
     raw: completion.raw,
     extracted,
+    extractedFilenames: inputs.map((i) => i.filename),
     finishReason: completion.finishReason,
     usage: completion.usage,
     latencyMs: completion.latencyMs,
   };
-}
-
-function buildUserMessage(extracted: ExtractedDocument, instructions: string | undefined): string {
-  const parts: string[] = [];
-  if (instructions && instructions.trim()) {
-    parts.push(`# Consignes additionnelles\n\n${instructions.trim()}\n`);
-  }
-  const header = `Document source (${extracted.format.toUpperCase()}, ${extracted.charCount} caractères${extracted.truncated ? ', tronqué' : ''})`;
-  parts.push(`# ${header}\n\n${extracted.text}`);
-  parts.push(
-    '\n---\nProduis maintenant le bundle JSON complet du projet, conforme au format décrit dans le system prompt. Un seul objet JSON, rien autour.',
-  );
-  return parts.join('\n');
 }
 
 function mapAjvErrors(errors: readonly ErrorObject[]): readonly AjvValidationError[] {
