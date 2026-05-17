@@ -16,7 +16,8 @@ import InlineEdit from '../components/ui/InlineEdit.vue';
 interface Dispositif {
   id: string;
   category?: string;
-  audience?: string;
+  audiences?: string[]; // format v2 (pluriel) — source unique côté écriture
+  audience?: string; // legacy v1 — toléré en lecture, jamais ré-écrit
   name: string;
   url?: string;
   tel?: string;
@@ -28,6 +29,15 @@ interface Dispositif {
   maturite?: string;
   commentaire?: string;
   [k: string]: unknown;
+}
+
+// Lecture tolérante : retourne toujours un array, même pour les vieilles
+// données qui ont encore `audience: string` (le server normalise à l'import
+// mais des bundles importés avant le 2026-05-17 peuvent encore l'avoir).
+function getAudiences(d: Dispositif): string[] {
+  if (Array.isArray(d.audiences)) return d.audiences.filter((s) => typeof s === 'string' && s);
+  if (typeof d.audience === 'string' && d.audience.trim()) return [d.audience.trim()];
+  return [];
 }
 interface DispositifsMeta {
   title?: string;
@@ -72,7 +82,7 @@ const categories = computed(() => {
 
 const audiences = computed(() => {
   const set = new Set<string>();
-  for (const d of data.value.dispositifs) if (d.audience) set.add(d.audience);
+  for (const d of data.value.dispositifs) for (const a of getAudiences(d)) set.add(a);
   return Array.from(set).sort();
 });
 
@@ -84,7 +94,7 @@ const filtered = computed(() => {
       if (!hay.includes(term)) return false;
     }
     if (filterCategory.value && d.category !== filterCategory.value) return false;
-    if (filterAudience.value && d.audience !== filterAudience.value) return false;
+    if (filterAudience.value && !getAudiences(d).includes(filterAudience.value)) return false;
     return true;
   });
 });
@@ -121,7 +131,7 @@ function addDispositif(): void {
     id,
     name: 'Nouveau dispositif',
     category: '',
-    audience: '',
+    audiences: [],
     description: '',
     url: '',
     porteur: '',
@@ -136,6 +146,19 @@ function updateField<K extends keyof Dispositif>(id: string, field: K, value: st
   const d = next.dispositifs.find((x) => x.id === id);
   if (!d) return;
   (d as Record<string, unknown>)[field as string] = value;
+  void commit(next);
+}
+
+function updateAudiences(id: string, csv: string): void {
+  if (!ensureEdit()) return;
+  const next = clone();
+  const d = next.dispositifs.find((x) => x.id === id);
+  if (!d) return;
+  d.audiences = csv
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  delete d.audience; // ne garde qu'une seule source de vérité
   void commit(next);
 }
 
@@ -306,8 +329,13 @@ function audienceClass(label: string | undefined): string {
               </div>
               <div class="dispositif-item__tags">
                 <p v-if="d.category" class="fr-tag fr-tag--sm">{{ d.category }}</p>
-                <p v-if="d.audience" class="fr-tag fr-tag--sm" :class="audienceClass(d.audience)">
-                  {{ d.audience }}
+                <p
+                  v-for="a in getAudiences(d)"
+                  :key="a"
+                  class="fr-tag fr-tag--sm"
+                  :class="audienceClass(a)"
+                >
+                  {{ a }}
                 </p>
                 <p v-if="d.type" class="fr-tag fr-tag--sm">{{ d.type }}</p>
               </div>
@@ -363,15 +391,28 @@ function audienceClass(label: string | undefined): string {
                 </dd>
               </div>
               <div class="kv">
-                <dt>Public</dt>
+                <dt>Publics</dt>
                 <dd>
                   <InlineEdit
-                    :value="selected.audience ?? ''"
+                    :value="getAudiences(selected).join(', ')"
                     :can-edit="canEdit"
-                    placeholder="—"
-                    @update="(v: string) => updateField(selected!.id, 'audience', v)"
+                    placeholder="particuliers, pros, …"
+                    @update="(v: string) => updateAudiences(selected!.id, v)"
                     @edit-attempt="ensureEdit"
                   />
+                  <p
+                    v-if="getAudiences(selected).length > 0"
+                    style="margin: 0.3rem 0 0; display: flex; gap: 0.25rem; flex-wrap: wrap"
+                  >
+                    <span
+                      v-for="a in getAudiences(selected)"
+                      :key="a"
+                      class="fr-tag fr-tag--sm"
+                      :class="audienceClass(a)"
+                    >
+                      {{ a }}
+                    </span>
+                  </p>
                 </dd>
               </div>
               <div class="kv">

@@ -230,7 +230,8 @@
             "properties": {
               "id":           { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
               "category":     { "type": "string" },
-              "audience":     { "type": "string" },
+              "audiences":    { "type": "array", "items": { "$ref": "#/$defs/vocabRef" } },
+              "audience":     { "type": "string", "description": "Legacy — préférer audiences[]. Normalisé en audiences:[audience] à l'import (cf. server/src/services/project.service.ts)." },
               "name":         { "type": "string" },
               "url":          { "type": "string" },
               "tel":          { "type": "string" },

@@ -55,7 +55,7 @@ Règles :
 - project.slug : 1-50 chars, regex ^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$ ; project.name max 100 ; description max 500.
 - tree : { id:"root", label, type:"hub", types:["hub"], children:[...] } ; chaque enfant a { id, label } et optionnellement types[], tldr, audiences[], dispositifs[], mesures[], deadline, children[]. IDs uniques courts (p1, p1a, b2...).
 - roadmap : meta.calendrier=[{id,label,echeance}], meta.actions=[{id,label,desc}], items=[{id:"rm-001",slice,action,story,status:"pending",nodes:[],dispositifs:[]}].
-- dispositifs : meta.categories[], items {id:"D-XX01",category,audience,name,url,description,porteur,tutelle,type,maturite}.
+- dispositifs : meta.categories[], items {id:"D-XX01",category,audiences:[],name,url,description,porteur,tutelle,type,maturite}. ATTENTION : audiences est TOUJOURS un tableau de keys du vocab (jamais une string, jamais un champ singulier audience).
 - mesures : meta.axes=[{id,label}], meta.objectifs={[axeId]:[{id,label}]}, items {id:"M1",axe,objectif|null,title,summary,audiences:[],deadline}.
 - objectifs : axes=[{id:"A1",name,objectives:[{id:"A1.O1",name,means:[{id:"A1.O1.M1",text,nodes:[],dispositifs:[]}]}]}].
 - drupal_structure : content_types[], paragraphs[]⊂{accordion,tabs,cards-row,tiles-row,auto-list,summary,button,highlight,callout,image-text,quote,table,video,download-block,download-links,cards-download,code}, taxonomies[{key,label,multi,options}].

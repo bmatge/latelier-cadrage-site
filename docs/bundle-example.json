@@ -126,7 +126,7 @@
         {
           "id": "D-AID01",
           "category": "Droits",
-          "audience": "Particuliers",
+          "audiences": ["particuliers"],
           "name": "Service-public.fr — Aidants",
           "url": "https://www.service-public.fr/particuliers/vosdroits/N469",
           "description": "Page de référence sur les droits des aidants familiaux : congé proche aidant, AJPA, dédommagement APA.",
@@ -140,7 +140,7 @@
         {
           "id": "D-AID02",
           "category": "Répit",
-          "audience": "Particuliers",
+          "audiences": ["particuliers"],
           "name": "Pour les Personnes Âgées — annuaire",
           "url": "https://www.pour-les-personnes-agees.gouv.fr/annuaire",
           "description": "Annuaire des établissements et services pour personnes âgées, dont les accueils de jour et hébergements temporaires.",
@@ -154,7 +154,7 @@
         {
           "id": "D-AID03",
           "category": "Information",
-          "audience": "Particuliers",
+          "audiences": ["particuliers"],
           "name": "Ma Boussole Aidants",
           "url": "https://www.ma-boussole-aidants.fr",
           "description": "Plateforme d'orientation personnalisée pour aidants — questionnaire et propositions de ressources.",

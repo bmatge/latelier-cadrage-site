@@ -2,6 +2,7 @@ import type { Kdb } from '../db/client.js';
 import { ValidationError } from '../domain/errors.js';
 import { getProjectData, upsertProjectData } from '../repositories/project-data.repo.js';
 import { logAudit } from './audit.service.js';
+import { normalizeDispositifs } from './project.service.js';
 
 const KEYS = new Set(['dispositifs', 'mesures', 'objectifs', 'drupal_structure', 'vocab']);
 
@@ -37,7 +38,11 @@ export interface WriteDataInput {
 export async function writeProjectData(k: Kdb, input: WriteDataInput): Promise<void> {
   assertValidKey(input.key);
   if (input.data === undefined) throw new ValidationError('data_required');
-  await upsertProjectData(k, input.projectId, input.key, JSON.stringify(input.data), input.actorId);
+  // Normalisation au boundary write : `dispositif.audience` (singulier legacy)
+  // → `audiences[]` (cf. project.service.ts). Idempotent : si la donnée est
+  // déjà au bon format, ne change rien.
+  const normalized = input.key === 'dispositifs' ? normalizeDispositifs(input.data) : input.data;
+  await upsertProjectData(k, input.projectId, input.key, JSON.stringify(normalized), input.actorId);
   await logAudit(k, 'data.write', {
     actorId: input.actorId,
     projectId: input.projectId,

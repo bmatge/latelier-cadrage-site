@@ -264,6 +264,34 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+// Le format historique posait `audience: string` (singulier) sur chaque
+// dispositif — divergence avec node.audiences[] / mesures.audiences[] qui
+// sont pluriel. Migration vers `audiences: string[]` (cf. bundle-schema.json).
+// Cette normalisation tolère 3 cas d'entrée par dispositif :
+//  - `audiences: [...]` déjà présent → garde tel quel (drop audience legacy)
+//  - `audience: "x"` seul → migré en `audiences: ["x"]`
+//  - `audience: ["x","y"]` (cas LLM qui pluralise spontanément) → migré en
+//    `audiences: ["x","y"]`
+// Les chaînes vides sont filtrées. Le champ `audience` est toujours supprimé
+// après migration pour ne pas porter deux sources de vérité.
+export function normalizeDispositifs(value: unknown): unknown {
+  if (!isPlainObject(value) || !Array.isArray(value['dispositifs'])) return value;
+  const items = (value['dispositifs'] as readonly unknown[]).map((raw) => {
+    if (!isPlainObject(raw)) return raw;
+    const { audience: legacy, audiences: existing, ...rest } = raw;
+    let audiences: readonly string[] | undefined;
+    if (Array.isArray(existing)) {
+      audiences = existing.filter((a): a is string => typeof a === 'string' && a.trim() !== '');
+    } else if (Array.isArray(legacy)) {
+      audiences = legacy.filter((a): a is string => typeof a === 'string' && a.trim() !== '');
+    } else if (typeof legacy === 'string' && legacy.trim() !== '') {
+      audiences = [legacy.trim()];
+    }
+    return audiences && audiences.length > 0 ? { ...rest, audiences } : rest;
+  });
+  return { ...value, dispositifs: items };
+}
+
 async function findFreeSlug(k: Kdb, base: string): Promise<string> {
   if (!(await getProjectBySlug(k, base))) return base;
   for (let i = 2; i < 1000; i++) {
@@ -350,8 +378,9 @@ export async function importProjectFromBundle(
     };
     for (const key of EXPORT_KEYS) {
       const provided = dataBundle[key];
-      const value = isPlainObject(provided) ? provided : fallbacks[key];
-      await replaceProjectData(trx, id, key, JSON.stringify(value), input.sysUserId);
+      const base = isPlainObject(provided) ? provided : fallbacks[key];
+      const normalized = key === 'dispositifs' ? normalizeDispositifs(base) : base;
+      await replaceProjectData(trx, id, key, JSON.stringify(normalized), input.sysUserId);
     }
     return id;
   });

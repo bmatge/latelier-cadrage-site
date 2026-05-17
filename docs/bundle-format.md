@@ -131,7 +131,8 @@ Catalogue des outils, plateformes, simulateurs ou services existants susceptible
 |---|---|---|
 | `id` | string | Unique. Convention : `D-{CODE}` (ex. `D-L01`, `D-M07`). |
 | `category` | string | Doit appartenir à `meta.categories`. |
-| `audience` | string | Public principal (texte libre, ex. `"Particuliers"`, `"Pros"`). |
+| `audiences` | string[] | Publics cibles parmi les `key` de `data.vocab.audiences[]`. Plusieurs valeurs acceptées. |
+| `audience` | string | **Legacy** (un seul public par dispositif). Toujours accepté à l'import — normalisé en `audiences: [audience]` côté serveur. Ne plus produire dans les nouveaux bundles. |
 | `name` | string | Nom du dispositif. |
 | `url` | string | Lien (optionnel). |
 | `tel` | string | Téléphone (optionnel). |

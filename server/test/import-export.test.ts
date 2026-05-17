@@ -37,12 +37,18 @@ describe('import-export bundle integrity', () => {
 
     const reExported = (await agent.get('/api/projects/clone/export')).body;
     expect(reExported.data.vocab).toEqual(original.data.vocab);
-    expect(reExported.data.dispositifs).toEqual(original.data.dispositifs);
     expect(reExported.data.mesures).toEqual(original.data.mesures);
     expect(reExported.data.objectifs).toEqual(original.data.objectifs);
     expect(reExported.data.drupal_structure).toEqual(original.data.drupal_structure);
     expect(reExported.tree).toEqual(original.tree);
     expect(reExported.roadmap).toEqual(original.roadmap);
+    // dispositifs : non strictement égal car le seed du projet historique
+    // (assets/seed-data/dispositifs.json, format v1) porte encore `audience:
+    // string`, normalisé en `audiences: [string]` au passage de l'import.
+    // Cf. test dédié « migration dispositif.audience → audiences[] » ci-dessous.
+    expect(reExported.data.dispositifs.dispositifs).toHaveLength(
+      original.data.dispositifs.dispositifs.length,
+    );
   });
 
   it('bundle sans `data.vocab` → fallback LEGACY_VOCAB (régression cutover 2026-05-17)', async () => {
@@ -179,5 +185,65 @@ describe('import-export bundle integrity', () => {
     expect(res.body.data.vocab).toHaveProperty('audiences');
     expect(res.body.data.vocab).toHaveProperty('deadlines');
     expect(res.body.data.vocab).toHaveProperty('page_types');
+  });
+
+  it("migration dispositif.audience (string legacy) → audiences[] à l'import", async () => {
+    // Bundles v1 et sorties Albert pluralisent spontanément le champ. Le
+    // serveur doit normaliser les 3 formes en `audiences: [...]` (drop le
+    // legacy `audience`).
+    const fx = await makeFixture();
+    const agent = await loginAs(fx, 'alice@test.fr', EDITOR);
+
+    const bundle = {
+      version: 1,
+      project: { slug: 'migration-test', name: 'Migration test', description: '' },
+      tree: { id: 'root', label: 'Migration test', type: 'hub', children: [] },
+      roadmap: { meta: {}, items: [] },
+      data: {
+        dispositifs: {
+          dispositifs: [
+            { id: 'D-LEGACY1', name: 'Legacy string', audience: 'particuliers' },
+            {
+              id: 'D-LEGACY2',
+              name: 'Legacy array sur audience',
+              audience: ['pros', 'collectivites'],
+            },
+            { id: 'D-V2', name: 'Déjà au format v2', audiences: ['particuliers', 'pros'] },
+            { id: 'D-EMPTY', name: 'Sans audience' },
+            { id: 'D-WHITESPACE', name: 'Audience vide', audience: '   ' },
+          ],
+        },
+      },
+    };
+
+    await agent.post('/api/projects/import').send({ bundle });
+    const dispositifs = (await agent.get('/api/projects/migration-test/data/dispositifs')).body.data
+      .dispositifs as readonly Record<string, unknown>[];
+
+    const byId = new Map(dispositifs.map((d) => [d['id'], d] as const));
+    expect(byId.get('D-LEGACY1')).toMatchObject({ audiences: ['particuliers'] });
+    expect(byId.get('D-LEGACY1')).not.toHaveProperty('audience');
+    expect(byId.get('D-LEGACY2')).toMatchObject({ audiences: ['pros', 'collectivites'] });
+    expect(byId.get('D-LEGACY2')).not.toHaveProperty('audience');
+    expect(byId.get('D-V2')).toMatchObject({ audiences: ['particuliers', 'pros'] });
+    expect(byId.get('D-EMPTY')).not.toHaveProperty('audiences');
+    expect(byId.get('D-EMPTY')).not.toHaveProperty('audience');
+    expect(byId.get('D-WHITESPACE')).not.toHaveProperty('audiences');
+    expect(byId.get('D-WHITESPACE')).not.toHaveProperty('audience');
+  });
+
+  it('PUT /data/dispositifs normalise aussi audience → audiences[] (boundary write)', async () => {
+    const fx = await makeFixture();
+    const agent = await loginAs(fx, 'alice@test.fr', EDITOR);
+
+    await agent.put('/api/projects/portail-electrification/data/dispositifs').send({
+      data: {
+        dispositifs: [{ id: 'D-X', name: 'X', audience: 'particuliers' }],
+      },
+    });
+    const dispositifs = (await agent.get('/api/projects/portail-electrification/data/dispositifs'))
+      .body.data.dispositifs as readonly Record<string, unknown>[];
+    expect(dispositifs[0]).toMatchObject({ id: 'D-X', audiences: ['particuliers'] });
+    expect(dispositifs[0]).not.toHaveProperty('audience');
   });
 });
