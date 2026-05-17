@@ -2,7 +2,7 @@
 
 > **À qui ça s'adresse** : chefs de projet qui veulent amorcer un nouveau projet dans L'atelier 🪢 à partir d'un fichier JSON (export d'un autre projet, ou JSON généré par une IA via [prompt-cadrage.md](prompt-cadrage.md)). Et développeurs qui veulent comprendre ce que produit `GET /api/projects/{slug}/export` et ce qu'accepte `POST /api/projects/import`.
 >
-> **Source de vérité du code** : [`server/src/db.js`](../server/src/db.js) — fonctions `exportProjectBundle()` et `importProjectFromBundle()`. Si ce document diverge du code, c'est le code qui gagne.
+> **Source de vérité du code** : [`server/src/services/project.service.ts`](../server/src/services/project.service.ts) — fonctions `exportProjectBundle()` et `importProjectFromBundle()`. Allow-list des clés `data.*` : [`server/src/services/data.service.ts`](../server/src/services/data.service.ts). Vocabulaires par défaut : [`server/src/services/seed.service.ts`](../server/src/services/seed.service.ts) (`DEFAULT_VOCAB` / `LEGACY_VOCAB` / `DEFAULT_DRUPAL_STRUCTURE`). Si ce document diverge du code, c'est le code qui gagne.
 
 ## Vue d'ensemble
 
@@ -72,7 +72,7 @@ Arbre récursif où chaque nœud représente une page (ou un regroupement) du fu
 **AUDIENCES** — publics cibles :
 `particuliers`, `coproprietes`, `collectivites`, `pros`, `industriels`, `agriculteurs`, `partenaires`, `agents`, `outremer`.
 
-> Les enums sont définis dans [`assets/script.js`](../assets/script.js) (lignes ~8-40). L'app affiche les libellés FR ; les codes ci-dessus sont ce qui doit être stocké dans le JSON.
+> Les enums **TYPES**, **DEADLINES**, **AUDIENCES** ci-dessus sont les valeurs historiques du projet « plan d'électrification » (cf. `LEGACY_VOCAB` dans [`server/src/services/seed.service.ts`](../server/src/services/seed.service.ts)). En v2, **chaque projet définit son propre vocabulaire** dans `data.vocab` (cf. ADR-009). Les valeurs ci-dessus ne sont plus normatives : un bundle peut utiliser n'importe quelles `key` cohérentes avec son `data.vocab.audiences[]` / `deadlines[]` / `page_types[]`.
 
 ### Champs legacy à éviter
 
@@ -176,7 +176,7 @@ Catalogue des mesures (actions de politique publique) que le portail communique.
 
 Trois niveaux : **axes** (orientation) → **objectives** (résultats visés) → **means** (moyens concrets, rattachables à des nœuds et dispositifs).
 
-> ⚠️ **Format imbriqué** (source de vérité, écrite par le front [`assets/objectifs.js`](../assets/objectifs.js)). À ne pas confondre avec le fallback `{ axes: [], objectifs: [], moyens: [] }` à plat dans [`server/src/db.js`](../server/src/db.js) qui est une coquille (defaults qui ne reflètent pas le vrai format).
+> **Format imbriqué** : `axes[].objectives[].means[]`. C'est le seul format accepté à l'export comme à l'import. Le seed serveur (création + import) injecte `{ axes: [] }` quand la clé manque (cf. [`server/src/services/project.service.ts`](../server/src/services/project.service.ts)).
 
 ### `meta`
 
@@ -229,11 +229,11 @@ Décrit comment le futur site sera modélisé dans Drupal : types de contenu, pa
 
 `accordion`, `tabs`, `cards-row`, `tiles-row`, `auto-list`, `summary`, `button`, `highlight`, `callout`, `image-text`, `quote`, `table`, `video`, `download-block`, `download-links`, `cards-download`, `code`.
 
-Le schéma de champs de chaque paragraphe est hardcodé dans [`assets/maquette.js`](../assets/maquette.js) et n'est pas exporté.
+Le schéma de champs de chaque paragraphe est défini dans [`shared/src/dsfr-paragraphs.ts`](../shared/src/dsfr-paragraphs.ts) (`PARAGRAPH_SCHEMAS`) — partagé back+front, pas embarqué dans le bundle.
 
 ### Défaut
 
-Si `drupal_structure` est absent du bundle, l'import applique `DEFAULT_DRUPAL_STRUCTURE` ([`server/src/db.js:45`](../server/src/db.js#L45)) : 6 types de contenu, 17 paragraphes tous activés, et 3 taxonomies (`univers`, `cibles`, `mesures` M1..M22).
+Si `drupal_structure` est absent du bundle, l'import applique `DEFAULT_DRUPAL_STRUCTURE` ([`server/src/services/seed.service.ts`](../server/src/services/seed.service.ts)) : 6 types de contenu, 17 paragraphes tous activés, et 3 taxonomies (`univers`, `cibles`, `mesures`).
 
 ## Références croisées (intégrité référentielle)
 

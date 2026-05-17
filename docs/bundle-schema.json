@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://latelier.bercy.matge.com/schemas/bundle.json",
   "title": "L'atelier — Bundle d'import projet",
-  "description": "Format d'export/import d'un projet (version 1). Cf. docs/bundle-format.md pour la spec narrative et docs/bundle-example.json pour un exemple complet.",
+  "description": "Format d'export/import d'un projet (version 1). Cf. docs/bundle-format.md pour la spec narrative et docs/bundle-example.json pour un exemple complet. Source de vérité du code : server/src/services/project.service.ts.",
   "type": "object",
   "required": ["version", "project"],
   "additionalProperties": false,
@@ -18,7 +18,9 @@
     "data": {
       "type": "object",
       "additionalProperties": false,
+      "description": "Catalogues projet. Seules ces 5 clés sont persistées (cf. allow-list dans server/src/services/data.service.ts). Les clés inconnues sont silencieusement ignorées à l'import.",
       "properties": {
+        "vocab":            { "$ref": "#/$defs/vocab" },
         "dispositifs":      { "$ref": "#/$defs/dispositifsCatalog" },
         "mesures":          { "$ref": "#/$defs/mesuresCatalog" },
         "objectifs":        { "$ref": "#/$defs/objectifsCatalog" },
@@ -42,63 +44,73 @@
       }
     },
 
-    "deadline": {
+    "vocabKey": {
       "type": "string",
-      "enum": ["juin", "septembre", "decembre", "y2027"]
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Clé technique d'une entrée de vocabulaire. Convention : kebab-case ASCII (résultat de slugify(label))."
     },
-    "audience": {
-      "type": "string",
-      "enum": [
-        "particuliers", "coproprietes", "collectivites",
-        "pros", "industriels", "agriculteurs",
-        "partenaires", "agents", "outremer"
-      ]
+    "vocabEntry": {
+      "type": "object",
+      "required": ["key", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "key":   { "$ref": "#/$defs/vocabKey" },
+        "label": { "type": "string", "minLength": 1 }
+      }
     },
-    "nodeType": {
+    "vocab": {
+      "type": "object",
+      "description": "Vocabulaires éditables par projet (cf. ADR-009). Sert de source unique pour les références audiences/deadlines/page_types posées sur les nœuds et les mesures.",
+      "additionalProperties": false,
+      "properties": {
+        "audiences":  { "type": "array", "items": { "$ref": "#/$defs/vocabEntry" } },
+        "deadlines":  { "type": "array", "items": { "$ref": "#/$defs/vocabEntry" } },
+        "page_types": { "type": "array", "items": { "$ref": "#/$defs/vocabEntry" } }
+      }
+    },
+
+    "vocabRef": {
       "type": "string",
-      "enum": [
-        "hub", "editorial", "service", "simulator", "map",
-        "external", "marketplace", "kit", "form", "private"
-      ]
+      "minLength": 1,
+      "description": "Référence vers une `vocab.*.[].key` du même bundle. Validation runtime côté UI ; la validation de schéma est volontairement permissive (le vocab est libre par projet — cf. ADR-009)."
     },
 
     "treeRoot": {
       "type": "object",
       "required": ["id", "label"],
+      "additionalProperties": true,
       "properties": {
-        "id":   { "const": "root" },
-        "type": { "const": "hub" },
-        "types": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/nodeType" }
-        },
-        "label":    { "type": "string", "minLength": 1 },
-        "tldr":     { "type": "string" },
+        "id":    { "const": "root" },
+        "label": { "type": "string", "minLength": 1 },
+        "type":  { "$ref": "#/$defs/vocabRef" },
+        "types": { "type": "array", "items": { "$ref": "#/$defs/vocabRef" } },
+        "tldr":  { "type": "string" },
         "children": {
           "type": "array",
           "items": { "$ref": "#/$defs/treeNode" }
         }
-      },
-      "additionalProperties": true
+      }
     },
 
     "treeNode": {
       "type": "object",
       "required": ["id", "label"],
-      "additionalProperties": false,
+      "additionalProperties": true,
+      "description": "additionalProperties: true — les nœuds portent aussi des champs maquette/commentaires/improvements/etc. ajoutés par les pages Vue (cf. ProjectMaquettePage). Cf. champs documentés en `properties` pour le contrat de base.",
       "properties": {
         "id":     { "type": "string", "minLength": 1 },
         "label":  { "type": "string", "minLength": 1 },
-        "types":  { "type": "array", "items": { "$ref": "#/$defs/nodeType" } },
-        "type":   { "$ref": "#/$defs/nodeType", "description": "Legacy — préférer types[]." },
+        "type":   { "$ref": "#/$defs/vocabRef", "description": "Legacy — préférer types[]." },
+        "types":  { "type": "array", "items": { "$ref": "#/$defs/vocabRef" } },
         "tldr":   { "type": "string" },
         "format": { "type": "string" },
         "url":    { "type": "string" },
-        "deadline":   { "$ref": "#/$defs/deadline" },
+        "deadline":   { "$ref": "#/$defs/vocabRef" },
         "time_tech":  { "type": ["number", "null"] },
         "time_edito": { "type": ["number", "null"] },
         "auth":       { "type": "boolean" },
-        "audiences":   { "type": "array", "items": { "$ref": "#/$defs/audience" } },
+        "audiences":   { "type": "array", "items": { "$ref": "#/$defs/vocabRef" } },
         "dispositifs": { "type": "array", "items": { "type": "string" } },
         "mesures":     { "type": "array", "items": { "type": "string" } },
         "blocks": {
@@ -106,7 +118,7 @@
           "items": {
             "type": "object",
             "required": ["id"],
-            "additionalProperties": false,
+            "additionalProperties": true,
             "properties": {
               "id":          { "type": "string" },
               "title":       { "type": "string" },
@@ -119,10 +131,10 @@
           "items": {
             "type": "object",
             "required": ["id"],
-            "additionalProperties": false,
+            "additionalProperties": true,
             "properties": {
               "id":          { "type": "string" },
-              "deadline":    { "$ref": "#/$defs/deadline" },
+              "deadline":    { "$ref": "#/$defs/vocabRef" },
               "title":       { "type": "string" },
               "description": { "type": "string" }
             }
@@ -292,8 +304,8 @@
               "qui":              { "type": "string" },
               "quand":            { "type": "string" },
               "objectif_chiffre": { "type": "string" },
-              "audiences":        { "type": "array", "items": { "$ref": "#/$defs/audience" } },
-              "deadline":         { "$ref": "#/$defs/deadline" }
+              "audiences":        { "type": "array", "items": { "$ref": "#/$defs/vocabRef" } },
+              "deadline":         { "$ref": "#/$defs/vocabRef" }
             }
           }
         }
@@ -304,6 +316,7 @@
       "type": "object",
       "required": ["axes"],
       "additionalProperties": false,
+      "description": "Pyramide stratégique imbriquée axes[].objectives[].means[]. Format unique (cf. project.service.ts fallback `{ axes: [] }`).",
       "properties": {
         "meta": {
           "type": "object",
