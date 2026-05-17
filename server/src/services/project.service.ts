@@ -19,7 +19,7 @@ import {
   insertRoadmapRevision,
 } from '../repositories/roadmap-revision.repo.js';
 import { ensureSystemUser } from '../repositories/user.repo.js';
-import { DEFAULT_DRUPAL_STRUCTURE, DEFAULT_VOCAB } from './seed.service.js';
+import { DEFAULT_DRUPAL_STRUCTURE, DEFAULT_VOCAB, LEGACY_VOCAB } from './seed.service.js';
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from '../domain/errors.js';
 import { logAudit } from './audit.service.js';
 import { hasPermission } from './rbac.service.js';
@@ -133,7 +133,7 @@ export async function createProject(k: Kdb, input: CreateProjectInput): Promise<
     const seeds: ReadonlyArray<readonly [string, unknown]> = [
       ['dispositifs', { dispositifs: [] }],
       ['mesures', { mesures: [] }],
-      ['objectifs', { axes: [], objectives: [], means: [] }],
+      ['objectifs', { axes: [] }],
       ['drupal_structure', DEFAULT_DRUPAL_STRUCTURE],
       ['vocab', DEFAULT_VOCAB],
     ];
@@ -334,12 +334,19 @@ export async function importProjectFromBundle(
       message: 'Import du projet',
     });
 
+    // Un bundle sans `data.vocab` est nécessairement un export v1 antérieur à
+    // l'inclusion de la clé `vocab` dans `EXPORT_KEYS`. À cette époque l'app
+    // tournait avec un vocabulaire hardcodé qui correspond à `LEGACY_VOCAB`
+    // (9 publics + 4 échéances 2026-2027 + 10 types de nœud). Si on retombe
+    // sur `DEFAULT_VOCAB` (1+3+3) au lieu, toutes les références audience/
+    // échéance/page_type du tree importé deviennent invalides — cf. incident
+    // cutover 2026-05-17 où le projet historique a perdu ses chips après import.
     const fallbacks: Readonly<Record<string, unknown>> = {
       dispositifs: { dispositifs: [] },
       mesures: { mesures: [] },
-      objectifs: { axes: [], objectives: [], means: [] },
+      objectifs: { axes: [] },
       drupal_structure: DEFAULT_DRUPAL_STRUCTURE,
-      vocab: DEFAULT_VOCAB,
+      vocab: LEGACY_VOCAB,
     };
     for (const key of EXPORT_KEYS) {
       const provided = dataBundle[key];
