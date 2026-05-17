@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" role="img" aria-label="Capture d'écran à venir">
+  <rect width="800" height="450" fill="#f6f6f6" stroke="#dddddd" stroke-width="2"/>
+  <g fill="#888888" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle">
+    <text x="400" y="200" font-size="28" font-weight="600">Capture à venir</text>
+    <text x="400" y="240" font-size="16">Remplacez ce fichier par votre propre capture dans</text>
+    <text x="400" y="265" font-size="16" font-family="ui-monospace, monospace">web/public/help/</text>
+  </g>
+</svg>

@@ -39,6 +39,26 @@ const importing = ref(false);
 const cadrageStatus = ref<CadrageStatus>({ enabled: false, configured: false, model: null });
 const cadrageModalOpen = ref(false);
 
+// 3 modalités de création regroupées dans un bloc unifié. Une seule est
+// « dépliée » à la fois : on garde 'blank' par défaut (cas le plus
+// fréquent). Cliquer sur la card 'ai' ouvre la modal, cliquer sur 'import'
+// déclenche le file picker — aucune des deux ne déploie de contenu inline.
+type CreateMethod = 'blank' | 'ai' | 'import';
+const activeMethod = ref<CreateMethod>('blank');
+const importInput = ref<HTMLInputElement | null>(null);
+
+function pickMethod(method: CreateMethod): void {
+  if (method === 'blank') {
+    activeMethod.value = 'blank';
+  } else if (method === 'ai') {
+    activeMethod.value = 'ai';
+    cadrageModalOpen.value = true;
+  } else {
+    activeMethod.value = 'import';
+    importInput.value?.click();
+  }
+}
+
 async function refresh(): Promise<void> {
   loading.value = true;
   try {
@@ -162,7 +182,6 @@ function fmtDate(iso: string): string {
 }
 
 const canCreate = () => auth.can('project:create');
-const canImport = () => auth.can('project:import');
 </script>
 
 <template>
@@ -222,9 +241,70 @@ const canImport = () => auth.can('project:import');
       </div>
 
       <div class="fr-col-12 fr-col-lg-5">
-        <section v-if="canCreate()" class="panel-card">
-          <h2 class="panel-card__title">Nouveau projet</h2>
-          <form @submit.prevent="handleCreate">
+        <section v-if="!canCreate()" class="panel-card alert">
+          Vous êtes <strong>viewer</strong> : vous pouvez consulter les projets publics mais pas en
+          créer. Demandez à un admin l'attribution d'un rôle <code>editor</code>.
+        </section>
+
+        <section v-else class="panel-card">
+          <h2 class="panel-card__title">Créer un projet</h2>
+          <p style="color: #666; font-size: 0.9rem; margin: 0 0 1rem">
+            Choisissez la méthode qui vous convient.
+            <RouterLink to="/aide" class="fr-link fr-link--sm">Voir le guide</RouterLink>
+          </p>
+
+          <div class="create-methods">
+            <button
+              type="button"
+              class="create-method"
+              :class="{ 'is-active': activeMethod === 'blank' }"
+              @click="pickMethod('blank')"
+            >
+              <span class="create-method__icon fr-icon-add-circle-line" aria-hidden="true"></span>
+              <span class="create-method__label">Vide</span>
+              <span class="create-method__hint"
+                >Formulaire — vous démarrez avec une racine seule.</span
+              >
+            </button>
+
+            <button
+              v-if="cadrageStatus.enabled"
+              type="button"
+              class="create-method"
+              :class="{
+                'is-active': activeMethod === 'ai',
+                'is-disabled': !cadrageStatus.configured,
+              }"
+              :disabled="!cadrageStatus.configured"
+              :title="!cadrageStatus.configured ? 'Albert non configuré (clé manquante)' : ''"
+              @click="pickMethod('ai')"
+            >
+              <span class="create-method__icon fr-icon-magic-line" aria-hidden="true"></span>
+              <span class="create-method__label">Via IA</span>
+              <span class="create-method__hint"
+                >Albert (DINUM) propose un projet depuis vos documents.</span
+              >
+            </button>
+
+            <button
+              type="button"
+              class="create-method"
+              :class="{ 'is-active': activeMethod === 'import' }"
+              :disabled="importing"
+              @click="pickMethod('import')"
+            >
+              <span class="create-method__icon fr-icon-upload-line" aria-hidden="true"></span>
+              <span class="create-method__label">Depuis un bundle</span>
+              <span class="create-method__hint">JSON exporté d'un autre atelier ou d'une IA.</span>
+            </button>
+          </div>
+
+          <!-- Formulaire 'vide' — seul cas où une saisie inline est nécessaire -->
+          <form
+            v-if="activeMethod === 'blank'"
+            class="create-blank-form"
+            @submit.prevent="handleCreate"
+          >
             <label class="field">
               <span>Nom</span>
               <input
@@ -267,54 +347,33 @@ const canImport = () => auth.can('project:import');
               </button>
             </p>
           </form>
-        </section>
-        <section v-else class="panel-card alert">
-          Vous êtes <strong>viewer</strong> : vous pouvez consulter les projets publics mais pas en
-          créer. Demandez à un admin l'attribution d'un rôle <code>editor</code>.
-        </section>
 
-        <section v-if="canImport() && cadrageStatus.enabled" class="panel-card">
-          <h2 class="panel-card__title">Créer un projet avec IA</h2>
-          <p style="color: #666; font-size: 0.9rem; margin-top: 0">
-            Albert (modèle souverain DINUM) analyse un document descriptif (PDF, DOCX, CSV, TXT) et
-            propose une première arborescence + roadmap + catalogues, prête à importer.
+          <!-- Statuts inline pour 'import' (le file picker est invisible mais l'erreur doit être lisible) -->
+          <p v-if="activeMethod === 'import' && importing" class="create-status">
+            Import en cours…
           </p>
-          <button
-            type="button"
-            class="fr-btn fr-icon-magic-line fr-btn--icon-left"
-            :disabled="!cadrageStatus.configured"
-            @click="cadrageModalOpen = true"
-          >
-            Lancer le cadrage IA
-          </button>
           <p
-            v-if="!cadrageStatus.configured"
-            class="alert"
-            style="margin-top: 0.5rem; font-size: 0.85rem"
+            v-if="activeMethod === 'import' && importError"
+            class="alert alert-error create-status"
+          >
+            {{ importError }}
+          </p>
+          <p
+            v-if="activeMethod === 'ai' && cadrageStatus.enabled && !cadrageStatus.configured"
+            class="alert create-status"
           >
             ⚠ Albert non configuré côté serveur (clé manquante). Contactez un admin.
           </p>
-        </section>
 
-        <section v-if="canImport()" class="panel-card">
-          <h2 class="panel-card__title">Importer un projet</h2>
-          <p style="color: #666; font-size: 0.9rem; margin-top: 0">
-            Importez un fichier JSON au format bundle (arbre, roadmap, vocab, catalogues). Voir
-            <code>docs/bundle-format.md</code>.
-          </p>
-          <label class="fr-btn fr-btn--secondary fr-icon-upload-line fr-btn--icon-left">
-            {{ importing ? 'Import en cours…' : 'Sélectionner un fichier JSON…' }}
-            <input
-              type="file"
-              accept="application/json"
-              style="display: none"
-              :disabled="importing"
-              @change="handleImport"
-            />
-          </label>
-          <p v-if="importError" class="alert alert-error" style="margin-top: 0.5rem">
-            {{ importError }}
-          </p>
+          <!-- File input caché, déclenché par le bouton 'Depuis un bundle' -->
+          <input
+            ref="importInput"
+            type="file"
+            accept="application/json"
+            style="display: none"
+            :disabled="importing"
+            @change="handleImport"
+          />
         </section>
       </div>
     </div>
@@ -327,3 +386,72 @@ const canImport = () => auth.can('project:import');
     />
   </div>
 </template>
+
+<style scoped>
+.create-methods {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.create-method {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.9rem 0.8rem;
+  background: white;
+  border: 1px solid var(--border-default-grey, #ddd);
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    box-shadow 0.15s;
+}
+
+.create-method:hover:not(:disabled) {
+  border-color: var(--border-action-high-blue-france, #6a6af4);
+  background: var(--background-alt-blue-france, #f7f7ff);
+}
+
+.create-method.is-active {
+  border-color: var(--text-action-high-blue-france, #000091);
+  background: var(--background-contrast-info, #eef0ff);
+  box-shadow: 0 0 0 2px var(--text-action-high-blue-france, #000091) inset;
+}
+
+.create-method.is-disabled,
+.create-method:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.create-method__icon {
+  font-size: 1.4rem;
+  color: var(--text-action-high-blue-france, #000091);
+}
+
+.create-method__label {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.create-method__hint {
+  font-size: 0.78rem;
+  color: var(--text-mention-grey, #666);
+  line-height: 1.35;
+}
+
+.create-blank-form {
+  border-top: 1px solid var(--border-default-grey, #eee);
+  padding-top: 1rem;
+}
+
+.create-status {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+</style>

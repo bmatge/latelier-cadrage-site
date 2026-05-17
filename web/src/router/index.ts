@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import HomePage from '../pages/HomePage.vue';
+import HelpPage from '../pages/HelpPage.vue';
 import LoginPage from '../pages/LoginPage.vue';
 import CallbackPage from '../pages/CallbackPage.vue';
 import NotFoundPage from '../pages/NotFoundPage.vue';
@@ -19,6 +20,7 @@ const routes: RouteRecordRaw[] = [
   // Home et pages projet : pas de requiresAuth — un anonyme peut consulter
   // les projets publics. L'édition reste gardée côté serveur (RBAC).
   { path: '/', name: 'home', component: HomePage },
+  { path: '/aide', name: 'help', component: HelpPage },
   { path: '/login', name: 'login', component: LoginPage },
   { path: '/auth/callback', name: 'callback', component: CallbackPage },
   {

@@ -91,6 +91,14 @@ const projectTabs = [
                   </RouterLink>
                 </li>
                 <li>
+                  <RouterLink
+                    class="fr-btn fr-btn--tertiary fr-btn--sm fr-icon-question-line fr-btn--icon-left"
+                    to="/aide"
+                  >
+                    Aide
+                  </RouterLink>
+                </li>
+                <li>
                   <a
                     class="fr-btn fr-btn--tertiary fr-btn--sm fr-icon-github-fill fr-btn--icon-left"
                     href="https://github.com/bmatge/latelier-cadrage-site"
