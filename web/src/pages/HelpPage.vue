@@ -613,6 +613,18 @@ function onImgError(event: Event): void {
           quel objectif »).
         </p>
 
+        <figure>
+          <img
+            :src="`/help/objectifs.png`"
+            alt="Page Objectifs avec la pyramide axes / objectifs / moyens"
+            @error="onImgError"
+          />
+          <figcaption>
+            Pyramide stratégique : axes, objectifs, moyens. Le compteur en haut indique combien de
+            moyens sont rattachés à un nœud de l’arbre.
+          </figcaption>
+        </figure>
+
         <section id="objectifs-pyramide">
           <h3>La pyramide à 3 niveaux</h3>
           <ul>
@@ -669,6 +681,17 @@ function onImgError(event: Event): void {
               supprimés en cascade.
             </li>
           </ul>
+          <figure>
+            <img
+              :src="`/help/inline-edit.png`"
+              alt="Champ texte en mode édition inline"
+              @error="onImgError"
+            />
+            <figcaption>
+              Édition inline : cliquer sur n’importe quel libellé ouvre un input directement à sa
+              place. <kbd>Enter</kbd> valide, <kbd>Échap</kbd> annule.
+            </figcaption>
+          </figure>
         </section>
 
         <section id="objectifs-liens">
@@ -786,6 +809,17 @@ function onImgError(event: Event): void {
               rappelle le nombre de sous-nœuds qui seront supprimés en cascade.
             </li>
           </ul>
+          <figure>
+            <img
+              :src="`/help/confirm-modal.png`"
+              alt="Modal de confirmation de suppression"
+              @error="onImgError"
+            />
+            <figcaption>
+              Toute suppression non triviale (axe, nœud avec enfants, mesure couverte…) passe par
+              une modal de confirmation qui détaille les effets en cascade.
+            </figcaption>
+          </figure>
         </section>
 
         <section id="arbo-detail">
@@ -838,6 +872,17 @@ function onImgError(event: Event): void {
             laisse une référence orpheline sur les nœuds — c’est volontaire, pour ne pas perdre
             d’information silencieusement.
           </p>
+          <figure>
+            <img
+              :src="`/help/multi-select.png`"
+              alt="MultiSelect dropdown ouvert avec options cochées"
+              @error="onImgError"
+            />
+            <figcaption>
+              MultiSelect des catalogues (mesures, dispositifs, objectifs) : recherche, cases à
+              cocher, tag « N options sélectionnées » sur le trigger.
+            </figcaption>
+          </figure>
         </section>
 
         <section id="arbo-historique">
@@ -879,6 +924,18 @@ function onImgError(event: Event): void {
           accordion, tabs, cards-row, callout, image-text…). Édition
           <strong>inline directement dans le rendu</strong> : on voit ce qu’on édite.
         </p>
+
+        <figure>
+          <img
+            :src="`/help/maquette.png`"
+            alt="Page Maquette avec liste nœuds, éditeur central et propriétés CMS"
+            @error="onImgError"
+          />
+          <figcaption>
+            Maquette interactive : panneau gauche (nœuds), édition centrale avec rendu DSFR, panneau
+            droit pour les propriétés CMS du nœud.
+          </figcaption>
+        </figure>
 
         <section id="maquette-navigation">
           <h3>Onglets et panneaux</h3>
@@ -1021,6 +1078,18 @@ function onImgError(event: Event): void {
           <em>Échéances</em>. C’est le tableau de bord temporel et fonctionnel du projet.
         </p>
 
+        <figure>
+          <img
+            :src="`/help/roadmap.png`"
+            alt="Page Roadmap en grille kanban croisant types de page et échéances"
+            @error="onImgError"
+          />
+          <figcaption>
+            Roadmap kanban : axes X / Y configurables. Cartes blanches = nœuds, cartes jaunes =
+            améliorations rattachées.
+          </figcaption>
+        </figure>
+
         <section id="roadmap-axes">
           <h3>Axes X et Y configurables</h3>
           <p>
@@ -1097,6 +1166,18 @@ function onImgError(event: Event): void {
           être rattachés à des nœuds de l’arbre (cf.
           <a href="#arbo-detail">panneau détail 3.3</a>).
         </p>
+
+        <figure>
+          <img
+            :src="`/help/ressources.png`"
+            alt="Catalogue dispositifs en master-détail"
+            @error="onImgError"
+          />
+          <figcaption>
+            Master-détail : liste filtrable à gauche (catégorie, public), panneau de détail à droite
+            avec tous les champs du dispositif sélectionné.
+          </figcaption>
+        </figure>
 
         <section id="ressources-catalogue">
           <h3>Catalogue master-détail</h3>
@@ -1210,6 +1291,18 @@ function onImgError(event: Event): void {
           défini ici. Deux onglets internes :
         </p>
 
+        <figure>
+          <img
+            :src="`/help/modele.png`"
+            alt="Page Modèle de données, onglet Vocabulaires projet"
+            @error="onImgError"
+          />
+          <figcaption>
+            Vocabulaires projet : trois accordéons (Publics cibles, Échéances, Types de page),
+            chaque entrée éditable avec libellé + clé technique immuable.
+          </figcaption>
+        </figure>
+
         <section id="modele-vocab">
           <h3>7.1 — Vocabulaires projet</h3>
           <p>Trois accordéons, repliables individuellement :</p>
@@ -1309,6 +1402,18 @@ function onImgError(event: Event): void {
           nœuds (cf. <a href="#arbo-detail">3.3</a>) — c’est ce qui donne l’indicateur de
           couverture.
         </p>
+
+        <figure>
+          <img
+            :src="`/help/politiques.png`"
+            alt="Kanban des mesures politiques"
+            @error="onImgError"
+          />
+          <figcaption>
+            Kanban : axes en lignes, échéances en colonnes. Chaque carte est une mesure ; le badge «
+            ✓ couvert » indique qu’au moins un nœud la porte.
+          </figcaption>
+        </figure>
 
         <section id="politiques-kanban">
           <h3>Kanban axes × échéances</h3>
