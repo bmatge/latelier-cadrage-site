@@ -10,6 +10,8 @@
 //    `{ axes: [] }` (et pas une coquille `{ axes, objectives, means }`).
 
 import { describe, it, expect } from 'vitest';
+import { sql } from 'kysely';
+import { seedDefaultProject } from '../src/services/seed.service.js';
 import { loginAs, makeFixture } from './setup.js';
 
 const EDITOR = { extraRoles: [{ role: 'editor' as const, projectId: null }] };
@@ -151,6 +153,21 @@ describe('import-export bundle integrity', () => {
     await agent.post('/api/projects').send({ slug: 'neuf2', name: 'Projet neuf 2' });
     const objectifs = (await agent.get('/api/projects/neuf2/data/objectifs')).body.data;
     expect(objectifs).toEqual({ axes: [] });
+  });
+
+  it('seedDefaultProject ne crashe pas si le projet historique id=1 a été supprimé (régression FK 2026-05-17)', async () => {
+    // Scénario : un admin a delete le projet historique (id=1) et ré-importé
+    // sous un autre id. Au reboot, seedDefaultProject doit skip ses INSERT
+    // project_data hardcodés sur project_id=1 — sinon FOREIGN KEY violation
+    // → crash → restart loop (cf. cutover prod 2026-05-17).
+    const fx = await makeFixture();
+    await sql`PRAGMA defer_foreign_keys = ON`.execute(fx.k);
+    await fx.k.deleteFrom('project_data').where('project_id', '=', 1).execute();
+    await fx.k.deleteFrom('revisions').where('project_id', '=', 1).execute();
+    await fx.k.deleteFrom('roadmap_revisions').where('project_id', '=', 1).execute();
+    await fx.k.deleteFrom('projects').where('id', '=', 1).execute();
+
+    await expect(seedDefaultProject(fx.k)).resolves.toBeUndefined();
   });
 
   it('export inclut bien la clé `vocab` (cf. EXPORT_KEYS)', async () => {

@@ -124,17 +124,31 @@ function readJsonOrNull<T>(path: string): T | null {
 
 export async function seedDefaultProject(k: Kdb): Promise<void> {
   const sysUser = await ensureSystemUser(k);
-  const projectId = 1;
 
   // Backfill ownership : tous les projets sans created_by appartiennent au
   // système (cas d'un upgrade depuis v1 où la colonne n'existait pas). Voir
   // migration 0006 qui ne fait volontairement pas ce UPDATE pour éviter une
-  // FK violation à la migration (users(1) pas encore créé à ce moment).
+  // FK violation à la migration (users(1) pas encore créé à ce moment). Ce
+  // UPDATE est indépendant du projet historique (id=1) et tourne toujours.
   await k
     .updateTable('projects')
     .set({ created_by: sysUser.id })
     .where('created_by', 'is', null)
     .execute();
+
+  // Le projet historique id=1 (plan d'électrification) est inséré
+  // idempotemment par la migration 003_projects.sql. Si l'admin l'a
+  // supprimé (cf. cutover 2026-05-17 où Bertrand a fait DELETE puis
+  // ré-import → nouveau id ≠ 1), on ne le recrée pas — sinon les INSERT
+  // project_data plantent en FK et le container restart en boucle. La
+  // suppression d'un projet est un acte volontaire qui doit être respecté.
+  const projectId = 1;
+  const project1 = await k
+    .selectFrom('projects')
+    .select('id')
+    .where('id', '=', projectId)
+    .executeTakeFirst();
+  if (!project1) return;
 
   if (!(await getHeadRevision(k, projectId))) {
     const seed = readJsonOrNull<{
