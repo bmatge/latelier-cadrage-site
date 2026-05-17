@@ -27,6 +27,10 @@ COPY tsconfig.base.json ./
 COPY shared ./shared
 COPY server ./server
 COPY web ./web
+# bundle-schema.json est chargé au runtime par cadrage.service.ts pour
+# valider les sorties Albert. Copié ici pour être disponible au stage
+# runtime (cf. plus bas).
+COPY docs/bundle-schema.json ./docs/bundle-schema.json
 
 RUN npm run build -w @latelier/shared \
  && npm run build -w @latelier/server \
@@ -53,6 +57,11 @@ COPY --from=build /app/web/dist ./public
 
 # Migrations SQL embarquées (lues à runtime par le migrator)
 COPY --from=build /app/server/src/db/migrations ./server/dist/db/migrations
+
+# Bundle schema embarqué (lu à runtime par cadrage.service.ts). On le pose
+# à côté du bundle compilé pour que le path lookup primaire le trouve sans
+# remonter dans `docs/` (le dossier docs/ n'est pas inclus en prod).
+COPY --from=build /app/docs/bundle-schema.json ./server/dist/bundle-schema.json
 
 # Volume DB
 RUN mkdir -p /data && chown -R app:app /data /app

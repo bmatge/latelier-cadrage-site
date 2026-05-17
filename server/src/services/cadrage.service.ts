@@ -33,17 +33,44 @@ import { chatCompletion, extractJsonObject, type AlbertConfig } from './albert.s
 import { extractDocument, type ExtractedDocument } from './document-extract.service.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const SCHEMA_PATH = resolve(here, '../../../docs/bundle-schema.json');
 
-interface BundleSchema {
-  readonly $schema?: string;
-  readonly $id?: string;
+// Le schéma vit en `docs/bundle-schema.json` à la racine du repo. Pour le
+// runtime, le Dockerfile en copie une copie à côté du bundle compilé
+// (`server/dist/bundle-schema.json`). On essaie les deux paths dans l'ordre.
+const SCHEMA_CANDIDATES = [
+  resolve(here, '../bundle-schema.json'), // prod (Dockerfile copie ici)
+  resolve(here, '../../../docs/bundle-schema.json'), // dev local (depuis le repo)
+];
+
+// Init lazy : le serveur ne doit PAS crasher au boot si le schéma est
+// introuvable. Seul un appel à `/cadrage/generate` ou `/refine` retombe
+// alors sur une erreur explicite. Idempotent (cache).
+let cachedValidate: AjvValidateFn | null = null;
+let cachedError: Error | null = null;
+
+function getBundleValidator(): AjvValidateFn {
+  if (cachedValidate) return cachedValidate;
+  if (cachedError) throw cachedError;
+  for (const path of SCHEMA_CANDIDATES) {
+    try {
+      const schema = JSON.parse(readFileSync(path, 'utf-8')) as unknown;
+      const ajv = new Ajv2020.default({ strict: false, allErrors: true });
+      addFormats.default(ajv);
+      cachedValidate = ajv.compile(schema);
+      return cachedValidate;
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code !== 'ENOENT') {
+        cachedError = e instanceof Error ? e : new Error(String(e));
+        throw cachedError;
+      }
+    }
+  }
+  cachedError = new Error(
+    `bundle-schema.json introuvable (paths essayés : ${SCHEMA_CANDIDATES.join(', ')})`,
+  );
+  throw cachedError;
 }
-
-const ajv = new Ajv2020.default({ strict: false, allErrors: true });
-addFormats.default(ajv);
-const BUNDLE_SCHEMA = JSON.parse(readFileSync(SCHEMA_PATH, 'utf-8')) as BundleSchema;
-const validateBundle = ajv.compile(BUNDLE_SCHEMA);
 
 // Prompt système — variante courte de docs/prompt-cadrage.md, condensée pour
 // la consommation API (tokens comptent). Si on modifie le format du bundle,
@@ -163,10 +190,9 @@ function packResult(
   inputs: readonly GenerateInput[],
 ): GenerateResult {
   const bundle = extractJsonObject(completion.raw);
-  const isValid = bundle != null && validateBundle(bundle);
-  const errors: readonly AjvValidationError[] = !isValid
-    ? mapAjvErrors(validateBundle.errors ?? [])
-    : [];
+  const validate = getBundleValidator();
+  const isValid = bundle != null && validate(bundle);
+  const errors: readonly AjvValidationError[] = !isValid ? mapAjvErrors(validate.errors ?? []) : [];
   return {
     bundle,
     valid: !!isValid,
