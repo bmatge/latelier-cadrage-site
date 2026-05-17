@@ -14,7 +14,11 @@ import {
 import { insertProjectDataIfMissing } from '../repositories/project-data.repo.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const ASSETS_DATA = resolve(here, '../../../assets/data');
+// Données JSON historiques utilisées pour seed le projet `id=1` (plan
+// d'électrification) en local et en tests. En prod l'image Docker n'embarque
+// pas ces fichiers (cf. Dockerfile) ; `readJsonOrNull` retombe alors sur les
+// fallbacks codés en dur ci-dessous.
+const SEED_DATA = resolve(here, '../../seed-data');
 
 // LEGACY_VOCAB = ce qui était hardcodé dans le code historique (plan
 // d'électrification : 9 publics, 4 échéances 2026-2027, 10 types de nœud).
@@ -139,7 +143,7 @@ export async function seedDefaultProject(k: Kdb): Promise<void> {
       readonly type: string;
       readonly tldr: string;
       readonly children: readonly unknown[];
-    }>(resolve(ASSETS_DATA, 'tree.json')) ?? {
+    }>(resolve(SEED_DATA, 'tree.json')) ?? {
       id: 'root',
       label: 'Racine',
       type: 'hub',
@@ -157,7 +161,7 @@ export async function seedDefaultProject(k: Kdb): Promise<void> {
 
   if (!(await getHeadRoadmapRevision(k, projectId))) {
     const seed = readJsonOrNull<{ meta: unknown; items: readonly unknown[] }>(
-      resolve(ASSETS_DATA, 'roadmap.json'),
+      resolve(SEED_DATA, 'roadmap.json'),
     ) ?? { meta: {}, items: [] };
     await insertRoadmapRevision(k, {
       projectId,
@@ -169,9 +173,9 @@ export async function seedDefaultProject(k: Kdb): Promise<void> {
   }
 
   const catalogSeeds: ReadonlyArray<readonly [string, string]> = [
-    ['dispositifs', resolve(ASSETS_DATA, 'dispositifs.json')],
-    ['mesures', resolve(ASSETS_DATA, 'mesures.json')],
-    ['objectifs', resolve(ASSETS_DATA, 'objectifs.json')],
+    ['dispositifs', resolve(SEED_DATA, 'dispositifs.json')],
+    ['mesures', resolve(SEED_DATA, 'mesures.json')],
+    ['objectifs', resolve(SEED_DATA, 'objectifs.json')],
   ];
   for (const [key, path] of catalogSeeds) {
     const data = readJsonOrNull<unknown>(path);

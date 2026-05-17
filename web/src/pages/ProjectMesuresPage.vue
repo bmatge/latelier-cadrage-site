@@ -1,8 +1,7 @@
 <script setup lang="ts">
-// Page "Politiques publiques" (legacy `mesures.html`) — kanban par
-// échéance × axe, avec CRUD inline (création / édition / suppression).
-// Toolbar Search + filtre Axe + filtre Public. Compteur global
-// "X / Y mesures · Z portées par un nœud".
+// Page "Politiques publiques" — kanban par échéance × axe, avec CRUD inline
+// (création / édition / suppression). Toolbar Search + filtre Axe + filtre
+// Public. Compteur global "X / Y mesures · Z portées par un nœud".
 
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';

@@ -1,6 +1,5 @@
-// 17 schémas DSFR pour la page Maquette. Extraits du legacy
-// `assets/maquette.js` (PARAGRAPH_SCHEMAS) — source unique pour back et
-// front. Chaque schéma a un `kind` qui détermine la forme de la donnée :
+// 17 schémas DSFR pour la page Maquette — source unique partagée back+front.
+// Chaque schéma a un `kind` qui détermine la forme de la donnée :
 //   - 'simple'  : objet { field1, field2... }
 //   - 'items'   : tableau d'objets [{ field1, field2 }, ...]
 //   - 'text'    : string brute (éditable en input ou textarea)

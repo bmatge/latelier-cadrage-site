@@ -1,9 +1,6 @@
 // Helpers d'édition d'arbre — manipulation immutable de l'arbre courant
 // dans `useTreeStore`. Toutes les opérations recopient le sous-arbre touché
 // et appellent `setTree` pour invalider proprement la réactivité Vue.
-//
-// Les conventions ID/format de nœud collent à `assets/script.js` (legacy v1)
-// pour rester rétro-compatible avec les bundles existants.
 
 import type { TreeNode } from '../stores/tree.js';
 

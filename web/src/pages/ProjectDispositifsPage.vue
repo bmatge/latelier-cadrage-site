@@ -1,8 +1,7 @@
 <script setup lang="ts">
-// Page "Ressources & services existants" (legacy `dispositifs.html`)
-// — master-détail : liste à gauche, panneau détail à droite. Toolbar 4
-// boutons (+ Nouveau / Export / Import / Réinitialiser), 3 filtres
-// (Search / Catégorie / Audience).
+// Page "Ressources & services existants" — master-détail : liste à gauche,
+// panneau détail à droite. Toolbar 4 boutons (+ Nouveau / Export / Import /
+// Réinitialiser), 3 filtres (Search / Catégorie / Audience).
 
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';

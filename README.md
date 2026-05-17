@@ -17,9 +17,14 @@ latelier-cadrage-site/
 ├─ server/   — @latelier/server : Express + TypeScript strict + Kysely + SQLite
 ├─ web/      — @latelier/web    : SPA Vue 3 + Vite + Pinia + vue-router
 ├─ docs/     — bundle format + ops (sqlite, restore, v2-cutover)
-├─ ops/      — scripts shell (backup.sh)
-└─ assets/   — legacy v1 (HTML/JS vanilla, sera supprimé après parité SPA)
+└─ ops/      — scripts shell (backup.sh, grant-admin, seed-invites)
 ```
+
+> Le dossier `assets/` et les pages HTML racine (v1 vanilla) ont été
+> supprimés à la suite du cutover v2 en prod (cf. revue d'alignement
+> 2026-05-17). Les seeds historiques du projet `id=1` (plan d'électrification)
+> sont conservés dans `server/seed-data/` (utilisés en dev/tests, ignorés en
+> prod).
 
 ## Quickstart dev
 

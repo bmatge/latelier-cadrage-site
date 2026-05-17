@@ -2,7 +2,7 @@
 // `<ParagraphLive>` — preview DSFR rendue avec champs édités INLINE
 // directement dans le rendu. Quand l'utilisateur clique sur le titre d'une
 // carte, c'est ce titre qui devient input — pas un éditeur dans un panneau
-// séparé. Reproduit l'expérience v1 (assets/maquette.js).
+// séparé.
 //
 // Mini toolbar visible au hover : drag-handle (futur), edit-defaults, ↑↓, ×.
 //

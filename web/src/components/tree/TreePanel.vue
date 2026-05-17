@@ -1,11 +1,7 @@
 <script setup lang="ts">
-// Panneau détail d'un nœud — porté complètement depuis le legacy
-// assets/script.js (renderPanel + renderBlocksSection + renderMesuresSection
-// + renderDispositifsSection + renderObjectivesSection + renderImprovementsSection
-// + renderMaquetteSection + renderCommentsSection).
-//
-// Ergonomie : édition inline cliquable (InlineEdit), accordéons stateful
-// (state survit aux re-renders), boutons DSFR fr-btn + fr-icon-*.
+// Panneau détail d'un nœud — 7 sections (blocs, améliorations, mesures,
+// dispositifs, objectifs liés, maquette, commentaires). Édition inline via
+// InlineEdit, accordéons stateful, boutons DSFR fr-btn + fr-icon-*.
 
 import { computed, ref } from 'vue';
 import { RouterLink } from 'vue-router';

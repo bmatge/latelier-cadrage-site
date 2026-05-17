@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // `<InlineEdit>` — affichage texte cliquable qui devient input/textarea
-// au clic. Pattern repris du legacy assets/objectifs.js `editableLabel()`.
+// au clic.
 //
 // Comportement :
 //   - Clic sur le texte → focus l'input avec valeur courante sélectionnée

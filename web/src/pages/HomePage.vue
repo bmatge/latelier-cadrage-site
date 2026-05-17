@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Picker — liste des projets, création de nouveau projet, import bundle JSON.
-// Reproduit l'organisation 2-colonnes du legacy (`index.html`) :
+// Organisation 2 colonnes :
 //   - gauche : "Projets existants" (cartes enrichies)
 //   - droite : "Nouveau projet" (form) + "Importer un projet" (file input)
 

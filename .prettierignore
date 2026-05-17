@@ -10,10 +10,12 @@ package-lock.json
 .husky/_
 .claude/
 
-# Legacy v1 — migré en TypeScript dans les phases 1–7 de la refacto v2.
-# Ne pas reformater massivement pour préserver la lisibilité de l'historique git.
-assets/
-*.html
+# Données JSON figées du projet historique (seed du projet id=1).
+# Ne pas reformater pour préserver leur lisibilité d'origine.
+server/seed-data/
+
+# Docs et schémas : format soigné manuellement (tableaux alignés, JSON Schema
+# avec colonnes), pas envie que prettier les reflow.
 docs/bundle-format.md
 docs/bundle-example.json
 docs/bundle-schema.json
