@@ -3,16 +3,25 @@
 // pas de parsing CSV structuré (le modèle sait lire un CSV brut). Tout ce qui
 // n'est pas reconnu est traité comme texte UTF-8.
 
-// pdf-parse est CJS et son export ESM ne propose pas de `default`. On passe
-// par `createRequire` (officiel Node ESM) pour récupérer la fonction comme
-// avec un `require('pdf-parse')` classique — sans déclencher le side-effect
-// de son `index.js` (`if (require.main === module)`) qui tente de lire un
-// fichier de test si le module est exécuté directement.
+// pdf-parse v2 expose une classe `PDFParse` (et plus une fonction directe
+// comme v1.x). On passe par `createRequire` car son export ESM ne propose
+// pas de `default`.
 import { createRequire } from 'node:module';
 import mammoth from 'mammoth';
 
+interface PdfParseTextResult {
+  readonly text: string;
+}
+interface PdfParseInstance {
+  getText(): Promise<PdfParseTextResult>;
+  destroy(): Promise<void>;
+}
+interface PdfParseModule {
+  PDFParse: new (opts: { data: Uint8Array }) => PdfParseInstance;
+}
+
 const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string }>;
+const pdfParseModule = require('pdf-parse') as PdfParseModule;
 
 export type DocumentFormat = 'pdf' | 'docx' | 'csv' | 'text';
 
@@ -55,8 +64,17 @@ function detectFormat(mimetype: string, filename: string): DocumentFormat {
 
 async function extractRaw(buffer: Buffer, format: DocumentFormat): Promise<string> {
   if (format === 'pdf') {
-    const result = await pdfParse(buffer);
-    return result.text;
+    // PDFParse veut un Uint8Array (Buffer en hérite mais le contrat explicite
+    // évite les surprises avec les versions futures de pdf-parse).
+    const parser = new pdfParseModule.PDFParse({
+      data: new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength),
+    });
+    try {
+      const result = await parser.getText();
+      return result.text;
+    } finally {
+      await parser.destroy();
+    }
   }
   if (format === 'docx') {
     const { value } = await mammoth.extractRawText({ buffer });
