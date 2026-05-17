@@ -14,7 +14,6 @@ import {
 import { getCadrageStatus, type CadrageStatus } from '../api/cadrage.api.js';
 import { useAuthStore } from '../stores/auth.js';
 import { useConfirm } from '../stores/confirm.js';
-import PageHeader from '../components/ui/PageHeader.vue';
 import CadrageModal from '../components/cadrage/CadrageModal.vue';
 import CreateBlankModal from '../components/create/CreateBlankModal.vue';
 import ImportBundleModal from '../components/create/ImportBundleModal.vue';
@@ -109,15 +108,63 @@ const canCreate = () => auth.can('project:create');
 
 <template>
   <div>
-    <PageHeader
-      title="Vos projets"
-      subtitle="Sélectionnez un projet pour l'éditer, créez-en un nouveau, ou importez un projet exporté."
-    />
+    <section class="home-hero" aria-labelledby="home-hero-title">
+      <h1 id="home-hero-title" class="home-hero__title">L’atelier</h1>
+      <p class="home-hero__pitch">
+        L’atelier est un outil de <strong>cadrage de sites institutionnels</strong> : on y modélise
+        l’<strong>arborescence</strong> des pages, la <strong>roadmap</strong> des évolutions, la
+        <strong>maquette DSFR</strong> de chaque page, les
+        <strong>politiques publiques</strong> portées et les <strong>dispositifs tiers</strong> à
+        pointer — <em>avant</em> que le site ne soit développé dans le CMS.
+      </p>
+      <p class="home-hero__pitch">
+        Chaque projet est collaboratif et exportable en un <strong>bundle JSON unique</strong> pour
+        archivage, partage ou réimport. Démarrez d’une page blanche, importez un projet existant, ou
+        laissez <strong>l’IA Albert (DINUM)</strong> proposer une première version à partir de vos
+        documents.
+      </p>
+
+      <ul class="home-hero__features">
+        <li class="home-hero__feature">
+          <span class="home-hero__feature-icon fr-icon-layout-line" aria-hidden="true"></span>
+          <span class="home-hero__feature-text">
+            <strong>Cadrer</strong>
+            <span>Arborescence, roadmap, maquette, politiques, dispositifs</span>
+          </span>
+        </li>
+        <li class="home-hero__feature">
+          <span class="home-hero__feature-icon fr-icon-team-line" aria-hidden="true"></span>
+          <span class="home-hero__feature-text">
+            <strong>Collaborer</strong>
+            <span>Édition à plusieurs, commentaires, révisions, rôles fins</span>
+          </span>
+        </li>
+        <li class="home-hero__feature">
+          <span class="home-hero__feature-icon fr-icon-magic-line" aria-hidden="true"></span>
+          <span class="home-hero__feature-text">
+            <strong>Démarrer vite</strong>
+            <span>Albert ingère vos documents et propose une v0</span>
+          </span>
+        </li>
+        <li class="home-hero__feature">
+          <span class="home-hero__feature-icon fr-icon-archive-line" aria-hidden="true"></span>
+          <span class="home-hero__feature-text">
+            <strong>Exporter</strong>
+            <span>Bundle JSON ouvert, ré-importable partout</span>
+          </span>
+        </li>
+      </ul>
+
+      <p class="home-hero__guide">
+        Premier passage ?
+        <RouterLink to="/aide" class="fr-link">Lire le guide complet</RouterLink>
+      </p>
+    </section>
 
     <div class="fr-grid-row fr-grid-row--gutters">
       <div class="fr-col-12 fr-col-lg-7">
         <section class="panel-card">
-          <h2 class="panel-card__title">Projets existants</h2>
+          <h2 class="panel-card__title">Vos projets</h2>
           <p v-if="loading">Chargement…</p>
           <p v-else-if="projects.length === 0" style="color: #666">
             Aucun projet pour l'instant. Créez-en un à droite, ou importez un bundle JSON.
@@ -235,6 +282,77 @@ const canCreate = () => auth.can('project:create');
 </template>
 
 <style scoped>
+/* Bloc d'accueil pour les nouveaux arrivants : pitch + 4 features.
+   Reste compact (≈ 280 px de haut sur desktop) pour ne pas pousser
+   la liste de projets trop bas pour les utilisateurs récurrents. */
+.home-hero {
+  margin-bottom: 2rem;
+  padding: 1.5rem 1.75rem 1.25rem;
+  background: linear-gradient(135deg, #f0f4ff 0%, #fafbff 100%);
+  border-left: 4px solid var(--border-action-high-blue-france, #000091);
+  border-radius: 4px;
+}
+
+.home-hero__title {
+  font-size: 1.75rem;
+  margin: 0 0 0.75rem;
+  font-weight: 700;
+  color: var(--text-action-high-blue-france, #000091);
+}
+
+.home-hero__pitch {
+  margin: 0 0 0.65rem;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  max-width: 75ch;
+}
+
+.home-hero__features {
+  list-style: none;
+  margin: 1.25rem 0 0.5rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.5rem 1rem;
+}
+
+.home-hero__feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.25rem 0;
+}
+
+.home-hero__feature-icon {
+  font-size: 1.5rem;
+  color: var(--text-action-high-blue-france, #000091);
+  flex-shrink: 0;
+  margin-top: 0.05rem;
+}
+
+.home-hero__feature-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.home-hero__feature-text strong {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.home-hero__feature-text > span {
+  color: var(--text-mention-grey, #666);
+}
+
+.home-hero__guide {
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+  color: var(--text-mention-grey, #666);
+}
+
 .create-methods {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
