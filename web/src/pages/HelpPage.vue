@@ -1,52 +1,104 @@
 <script setup lang="ts">
 // Page d'aide / guide d'utilisation de L'atelier 🪢. Publique (pas d'auth).
-// Sommaire latéral sticky + sections ancrées. Les emplacements <figure>
-// pointent vers /help/*.png (à déposer dans web/public/help/).
+// Menu latéral DSFR officiel (fr-sidemenu) + scroll-spy minimal pour
+// mettre à jour l'aria-current selon la section visible.
 
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { getCadrageStatus, type CadrageStatus } from '../api/cadrage.api.js';
 import PageHeader from '../components/ui/PageHeader.vue';
 
 const cadrageStatus = ref<CadrageStatus>({ enabled: false, configured: false, model: null });
+const activeId = ref<string>('concept');
+
+const sections = [
+  { id: 'concept', label: '1. Concept' },
+  { id: 'onboarding', label: '2. Onboarding' },
+  { id: 'creer-projet', label: '3. Créer un projet' },
+  { id: 'editer-projet', label: '4. Éditer un projet' },
+  { id: 'collaborer', label: '5. Collaborer' },
+  { id: 'exporter', label: '6. Exporter / réimporter' },
+  { id: 'roles', label: '7. Rôles et permissions' },
+  { id: 'personnaliser', label: '8. Vocabulaires projet' },
+  { id: 'faq', label: '9. FAQ' },
+];
+
+// Scroll-spy via IntersectionObserver : marque comme actif la section
+// dont le titre est en haut de la viewport. rootMargin négatif pour
+// déclencher tôt (avant que le titre n'atteigne le top).
+let observer: IntersectionObserver | null = null;
 
 onMounted(async () => {
   cadrageStatus.value = await getCadrageStatus();
+  observer = new IntersectionObserver(
+    (entries) => {
+      const visible = entries
+        .filter((e) => e.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+      if (visible[0]) activeId.value = visible[0].target.id;
+    },
+    { rootMargin: '0px 0px -70% 0px', threshold: 0 },
+  );
+  for (const s of sections) {
+    const el = document.getElementById(s.id);
+    if (el) observer.observe(el);
+  }
+});
+
+onUnmounted(() => {
+  observer?.disconnect();
 });
 
 // Fallback : si la capture n'a pas encore été déposée dans web/public/help/,
-// on retombe sur le placeholder partagé. Le user remplace ensuite chaque
-// fichier au nom indiqué.
+// on retombe sur le placeholder partagé.
 function onImgError(event: Event): void {
   const img = event.target as HTMLImageElement;
   if (img.src.endsWith('/help/placeholder.svg')) return;
   img.src = '/help/placeholder.svg';
 }
-
-const sections = [
-  { id: 'concept', label: '1 · Concept' },
-  { id: 'onboarding', label: '2 · Onboarding' },
-  { id: 'creer-projet', label: '3 · Créer un projet' },
-  { id: 'editer-projet', label: '4 · Éditer un projet' },
-  { id: 'collaborer', label: '5 · Collaborer' },
-  { id: 'exporter', label: '6 · Exporter / réimporter' },
-  { id: 'roles', label: '7 · Rôles et permissions' },
-  { id: 'personnaliser', label: '8 · Vocabulaires projet' },
-  { id: 'faq', label: '9 · FAQ' },
-];
 </script>
 
 <template>
-  <div class="help-layout">
-    <aside class="help-toc" aria-label="Sommaire">
-      <h2 class="help-toc__title">Sommaire</h2>
-      <ul>
-        <li v-for="s in sections" :key="s.id">
-          <a :href="`#${s.id}`">{{ s.label }}</a>
-        </li>
-      </ul>
-    </aside>
+  <div class="fr-grid-row fr-grid-row--gutters help-grid">
+    <!-- Menu latéral DSFR officiel : fr-sidemenu + fr-sidemenu--sticky-full-height -->
+    <div class="fr-col-12 fr-col-md-3">
+      <nav
+        class="fr-sidemenu fr-sidemenu--sticky-full-height"
+        role="navigation"
+        aria-labelledby="fr-sidemenu-title"
+      >
+        <div class="fr-sidemenu__inner">
+          <button
+            class="fr-sidemenu__btn"
+            hidden
+            aria-controls="fr-sidemenu-wrapper"
+            aria-expanded="false"
+          >
+            Dans cette page
+          </button>
+          <div class="fr-collapse" id="fr-sidemenu-wrapper">
+            <div class="fr-sidemenu__title" id="fr-sidemenu-title">Sommaire</div>
+            <ul class="fr-sidemenu__list">
+              <li
+                v-for="s in sections"
+                :key="s.id"
+                class="fr-sidemenu__item"
+                :class="{ 'fr-sidemenu__item--active': activeId === s.id }"
+              >
+                <a
+                  class="fr-sidemenu__link"
+                  :href="`#${s.id}`"
+                  :aria-current="activeId === s.id ? 'page' : undefined"
+                >
+                  {{ s.label }}
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+    </div>
 
-    <article class="help-content">
+    <article class="fr-col-12 fr-col-md-9 help-content">
       <PageHeader
         title="Guide de L'atelier 🪢"
         subtitle="Cartographier l'arborescence, la roadmap, les ressources et les politiques publiques d'un site institutionnel — avant de le construire dans Drupal."
@@ -481,54 +533,12 @@ const sections = [
 </template>
 
 <style scoped>
-.help-layout {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 2rem;
+/* La grille et le menu latéral sont 100% DSFR (fr-grid-row + fr-sidemenu).
+   On ne style que le contenu de l'article et quelques helpers locaux. */
+
+.help-grid {
   max-width: 1200px;
   margin: 0 auto;
-}
-
-.help-toc {
-  position: sticky;
-  top: 1rem;
-  align-self: start;
-  padding: 1rem;
-  background: #f6f6f6;
-  border-left: 4px solid var(--text-action-high-blue-france, #000091);
-  max-height: calc(100vh - 2rem);
-  overflow-y: auto;
-}
-
-.help-toc__title {
-  margin: 0 0 0.6rem;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #666;
-}
-
-.help-toc ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.help-toc a {
-  display: block;
-  padding: 0.35rem 0.5rem;
-  text-decoration: none;
-  color: var(--text-default-grey, #161616);
-  font-size: 0.9rem;
-  border-radius: 4px;
-}
-
-.help-toc a:hover {
-  background: var(--background-alt-blue-france, #eef0ff);
-  color: var(--text-action-high-blue-france, #000091);
 }
 
 .help-content {
@@ -644,13 +654,8 @@ const sections = [
   vertical-align: middle;
 }
 
-@media (max-width: 900px) {
-  .help-layout {
-    grid-template-columns: 1fr;
-  }
-  .help-toc {
-    position: static;
-    max-height: none;
-  }
-}
+/* Sur mobile : le sidemenu DSFR collapse automatiquement via le bouton
+   « Dans cette page » (fr-sidemenu__btn). Notre seule contrainte est
+   de ne pas le rendre sticky en colonne empilée — DSFR gère déjà
+   `fr-sidemenu--sticky-full-height` côté responsive. */
 </style>

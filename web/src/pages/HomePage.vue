@@ -1,17 +1,14 @@
 <script setup lang="ts">
-// Picker — liste des projets, création de nouveau projet, import bundle JSON.
-// Organisation 2 colonnes :
-//   - gauche : "Projets existants" (cartes enrichies)
-//   - droite : "Nouveau projet" (form) + "Importer un projet" (file input)
+// Picker — liste des projets à gauche, bloc « Créer un projet » à droite.
+// 3 modalités de création (vide / via IA / depuis bundle), chacune
+// déléguée à une modal dédiée pour cohérence visuelle.
 
 import { onMounted, ref } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import {
   listProjects,
-  createProject,
   deleteProject,
   exportProjectBundle,
-  importProjectBundle,
   type ProjectListItem,
 } from '../api/projects.api.js';
 import { getCadrageStatus, type CadrageStatus } from '../api/cadrage.api.js';
@@ -19,45 +16,24 @@ import { useAuthStore } from '../stores/auth.js';
 import { useConfirm } from '../stores/confirm.js';
 import PageHeader from '../components/ui/PageHeader.vue';
 import CadrageModal from '../components/cadrage/CadrageModal.vue';
+import CreateBlankModal from '../components/create/CreateBlankModal.vue';
+import ImportBundleModal from '../components/create/ImportBundleModal.vue';
 
-const confirm = useConfirm();
+const confirmStore = useConfirm();
 const router = useRouter();
 
 const auth = useAuthStore();
 const projects = ref<readonly ProjectListItem[]>([]);
 const loading = ref(true);
 
-const newSlug = ref('');
-const newName = ref('');
-const newDescription = ref('');
-const createError = ref<string | null>(null);
-const creating = ref(false);
-
-const importError = ref<string | null>(null);
-const importing = ref(false);
-
 const cadrageStatus = ref<CadrageStatus>({ enabled: false, configured: false, model: null });
-const cadrageModalOpen = ref(false);
 
-// 3 modalités de création regroupées dans un bloc unifié. Une seule est
-// « dépliée » à la fois : on garde 'blank' par défaut (cas le plus
-// fréquent). Cliquer sur la card 'ai' ouvre la modal, cliquer sur 'import'
-// déclenche le file picker — aucune des deux ne déploie de contenu inline.
-type CreateMethod = 'blank' | 'ai' | 'import';
-const activeMethod = ref<CreateMethod>('blank');
-const importInput = ref<HTMLInputElement | null>(null);
-
-function pickMethod(method: CreateMethod): void {
-  if (method === 'blank') {
-    activeMethod.value = 'blank';
-  } else if (method === 'ai') {
-    activeMethod.value = 'ai';
-    cadrageModalOpen.value = true;
-  } else {
-    activeMethod.value = 'import';
-    importInput.value?.click();
-  }
-}
+// 3 modales — exclusives (une seule ouverte à la fois). Une variable
+// dédiée par modal pour découpler les états (pas de bug si l'utilisateur
+// switche entre elles via Esc/click extérieur + reclic).
+const blankOpen = ref(false);
+const cadrageOpen = ref(false);
+const importOpen = ref(false);
 
 async function refresh(): Promise<void> {
   loading.value = true;
@@ -77,44 +53,12 @@ onMounted(() => {
   void refreshCadrageStatus();
 });
 
-async function onCadrageImported(slug: string): Promise<void> {
-  cadrageModalOpen.value = false;
+async function onProjectCreated(slug: string): Promise<void> {
+  blankOpen.value = false;
+  cadrageOpen.value = false;
+  importOpen.value = false;
   await refresh();
   await router.push(`/p/${slug}/arborescence`);
-}
-
-function slugifyName(): void {
-  if (!newSlug.value && newName.value) {
-    newSlug.value = newName.value
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 48);
-  }
-}
-
-async function handleCreate(): Promise<void> {
-  createError.value = null;
-  creating.value = true;
-  try {
-    const payload: { slug: string; name: string; description?: string } = {
-      slug: newSlug.value,
-      name: newName.value,
-    };
-    if (newDescription.value) payload.description = newDescription.value;
-    await createProject(payload);
-    newSlug.value = '';
-    newName.value = '';
-    newDescription.value = '';
-    await refresh();
-  } catch (err) {
-    const e = err as { response?: { data?: { error?: string; detail?: string } } };
-    createError.value = e.response?.data?.detail || e.response?.data?.error || 'Erreur de création';
-  } finally {
-    creating.value = false;
-  }
 }
 
 async function handleExport(slug: string): Promise<void> {
@@ -132,7 +76,7 @@ async function handleExport(slug: string): Promise<void> {
 }
 
 async function handleDelete(p: ProjectListItem): Promise<void> {
-  const ok = await confirm.ask({
+  const ok = await confirmStore.ask({
     title: `Supprimer le projet « ${p.name} » ?`,
     message:
       'Toutes ses données seront perdues définitivement : arborescence, roadmap, maquette, catalogues, historique des révisions.',
@@ -145,27 +89,6 @@ async function handleDelete(p: ProjectListItem): Promise<void> {
     await refresh();
   } catch (err) {
     alert(`Suppression impossible : ${(err as Error).message}`);
-  }
-}
-
-async function handleImport(event: Event): Promise<void> {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) return;
-  importError.value = null;
-  importing.value = true;
-  try {
-    const text = await file.text();
-    const bundle = JSON.parse(text) as unknown;
-    await importProjectBundle(bundle);
-    await refresh();
-    input.value = '';
-  } catch (err) {
-    const e = err as { response?: { data?: { error?: string; detail?: string } } };
-    importError.value =
-      e.response?.data?.detail || e.response?.data?.error || (err as Error).message;
-  } finally {
-    importing.value = false;
   }
 }
 
@@ -254,12 +177,7 @@ const canCreate = () => auth.can('project:create');
           </p>
 
           <div class="create-methods">
-            <button
-              type="button"
-              class="create-method"
-              :class="{ 'is-active': activeMethod === 'blank' }"
-              @click="pickMethod('blank')"
-            >
+            <button type="button" class="create-method" @click="blankOpen = true">
               <span class="create-method__icon fr-icon-add-circle-line" aria-hidden="true"></span>
               <span class="create-method__label">Vide</span>
               <span class="create-method__hint"
@@ -271,13 +189,10 @@ const canCreate = () => auth.can('project:create');
               v-if="cadrageStatus.enabled"
               type="button"
               class="create-method"
-              :class="{
-                'is-active': activeMethod === 'ai',
-                'is-disabled': !cadrageStatus.configured,
-              }"
+              :class="{ 'is-disabled': !cadrageStatus.configured }"
               :disabled="!cadrageStatus.configured"
               :title="!cadrageStatus.configured ? 'Albert non configuré (clé manquante)' : ''"
-              @click="pickMethod('ai')"
+              @click="cadrageOpen = true"
             >
               <span class="create-method__icon fr-icon-magic-line" aria-hidden="true"></span>
               <span class="create-method__label">Via IA</span>
@@ -286,103 +201,35 @@ const canCreate = () => auth.can('project:create');
               >
             </button>
 
-            <button
-              type="button"
-              class="create-method"
-              :class="{ 'is-active': activeMethod === 'import' }"
-              :disabled="importing"
-              @click="pickMethod('import')"
-            >
+            <button type="button" class="create-method" @click="importOpen = true">
               <span class="create-method__icon fr-icon-upload-line" aria-hidden="true"></span>
               <span class="create-method__label">Depuis un bundle</span>
               <span class="create-method__hint">JSON exporté d'un autre atelier ou d'une IA.</span>
             </button>
           </div>
 
-          <!-- Formulaire 'vide' — seul cas où une saisie inline est nécessaire -->
-          <form
-            v-if="activeMethod === 'blank'"
-            class="create-blank-form"
-            @submit.prevent="handleCreate"
-          >
-            <label class="field">
-              <span>Nom</span>
-              <input
-                v-model="newName"
-                type="text"
-                class="fr-input"
-                required
-                placeholder="Hub mobilités propres…"
-                @blur="slugifyName"
-              />
-            </label>
-            <label class="field">
-              <span>Slug <small style="color: #888">(a-z, 0-9, tirets)</small></span>
-              <input
-                v-model="newSlug"
-                type="text"
-                class="fr-input"
-                required
-                pattern="[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?"
-                placeholder="hub-mobilites-propres"
-              />
-            </label>
-            <label class="field">
-              <span>Description (optionnel)</span>
-              <textarea
-                v-model="newDescription"
-                class="fr-input"
-                rows="2"
-                placeholder="Une phrase pour situer le projet…"
-              />
-            </label>
-            <p v-if="createError" class="alert alert-error">{{ createError }}</p>
-            <p>
-              <button
-                type="submit"
-                class="fr-btn fr-icon-add-line fr-btn--icon-left"
-                :disabled="creating"
-              >
-                {{ creating ? 'Création…' : 'Créer le projet' }}
-              </button>
-            </p>
-          </form>
-
-          <!-- Statuts inline pour 'import' (le file picker est invisible mais l'erreur doit être lisible) -->
-          <p v-if="activeMethod === 'import' && importing" class="create-status">
-            Import en cours…
-          </p>
           <p
-            v-if="activeMethod === 'import' && importError"
-            class="alert alert-error create-status"
-          >
-            {{ importError }}
-          </p>
-          <p
-            v-if="activeMethod === 'ai' && cadrageStatus.enabled && !cadrageStatus.configured"
-            class="alert create-status"
+            v-if="cadrageStatus.enabled && !cadrageStatus.configured"
+            class="alert"
+            style="margin-top: 0.5rem; font-size: 0.85rem"
           >
             ⚠ Albert non configuré côté serveur (clé manquante). Contactez un admin.
           </p>
-
-          <!-- File input caché, déclenché par le bouton 'Depuis un bundle' -->
-          <input
-            ref="importInput"
-            type="file"
-            accept="application/json"
-            style="display: none"
-            :disabled="importing"
-            @change="handleImport"
-          />
         </section>
       </div>
     </div>
 
+    <CreateBlankModal :open="blankOpen" @close="blankOpen = false" @created="onProjectCreated" />
     <CadrageModal
-      :open="cadrageModalOpen"
+      :open="cadrageOpen"
       :status="cadrageStatus"
-      @close="cadrageModalOpen = false"
-      @imported="onCadrageImported"
+      @close="cadrageOpen = false"
+      @imported="onProjectCreated"
+    />
+    <ImportBundleModal
+      :open="importOpen"
+      @close="importOpen = false"
+      @imported="onProjectCreated"
     />
   </div>
 </template>
@@ -392,7 +239,6 @@ const canCreate = () => auth.can('project:create');
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 0.5rem;
-  margin-bottom: 1.25rem;
 }
 
 .create-method {
@@ -415,12 +261,7 @@ const canCreate = () => auth.can('project:create');
 .create-method:hover:not(:disabled) {
   border-color: var(--border-action-high-blue-france, #6a6af4);
   background: var(--background-alt-blue-france, #f7f7ff);
-}
-
-.create-method.is-active {
-  border-color: var(--text-action-high-blue-france, #000091);
-  background: var(--background-contrast-info, #eef0ff);
-  box-shadow: 0 0 0 2px var(--text-action-high-blue-france, #000091) inset;
+  box-shadow: 0 2px 8px rgba(0, 0, 145, 0.08);
 }
 
 .create-method.is-disabled,
@@ -443,15 +284,5 @@ const canCreate = () => auth.can('project:create');
   font-size: 0.78rem;
   color: var(--text-mention-grey, #666);
   line-height: 1.35;
-}
-
-.create-blank-form {
-  border-top: 1px solid var(--border-default-grey, #eee);
-  padding-top: 1rem;
-}
-
-.create-status {
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
 }
 </style>
