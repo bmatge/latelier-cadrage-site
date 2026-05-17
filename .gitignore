@@ -12,6 +12,7 @@ node_modules/
 # Refacto v2 — build outputs
 **/dist/
 **/coverage/
+**/.vite/
 .husky/_/
 *.tsbuildinfo
 .venv-audit/

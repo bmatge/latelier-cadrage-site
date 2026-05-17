@@ -30,7 +30,11 @@ export type ErrorCode =
   | 'import_failed'
   | 'create_failed'
   | 'delete_failed'
-  | 'data_required';
+  | 'data_required'
+  | 'file_required'
+  | 'file_too_large'
+  | 'albert_not_configured'
+  | 'albert_unavailable';
 
 export interface AppErrorPayload {
   readonly status: number;

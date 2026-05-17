@@ -15,6 +15,7 @@ import { errorHandler } from './middleware/error-handler.js';
 import { makeHelmet, makeRateLimits, makeRateLimitDispatcher } from './middleware/security.js';
 import { makeAdminRouter } from './routes/admin.routes.js';
 import { makeAuthRouter } from './routes/auth.routes.js';
+import { makeCadrageRouter } from './routes/cadrage.routes.js';
 import { makeProjectsRouter } from './routes/projects.routes.js';
 import { makeTreeRouter } from './routes/tree.routes.js';
 import { makeHistoryRouter } from './routes/history.routes.js';
@@ -69,6 +70,11 @@ export function createApp(options: CreateAppOptions): Express {
   app.use('/api', makeAuthRouter(options.k, options.mailer));
   app.use('/api', makeAdminRouter(options.k));
   app.use('/api', makeProjectsRouter(options.k));
+
+  // POC cadrage IA via Albert (DINUM) — désactivé par défaut, opt-in via env.
+  if (process.env.CADRAGE_ENABLED === '1') {
+    app.use('/api', makeCadrageRouter());
+  }
 
   const scoped = Router({ mergeParams: true });
   scoped.use(makeLoadProject(options.k));
