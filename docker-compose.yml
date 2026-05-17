@@ -29,6 +29,15 @@ services:
       # ici plutôt que sur la boîte technique latelier-noreply. À mettre
       # dans `.env` du VPS (souvent personnel, ex. bertrand@matge.com).
       - SMTP_REPLY_TO=${SMTP_REPLY_TO:-}
+      # POC cadrage IA via Albert (DINUM). Désactivé par défaut. Pour activer
+      # en prod : mettre CADRAGE_ENABLED=1 + ALBERT_API_URL + ALBERT_API_KEY
+      # dans `.env` du VPS. La route /api/cadrage/* n'est mountée que si le
+      # flag vaut '1' (sinon 404 silencieux, bouton UI caché).
+      - CADRAGE_ENABLED=${CADRAGE_ENABLED:-0}
+      - ALBERT_API_URL=${ALBERT_API_URL:-}
+      - ALBERT_API_KEY=${ALBERT_API_KEY:-}
+      - ALBERT_MODEL=${ALBERT_MODEL:-gpt-oss-120b}
+      - ALBERT_TEMPERATURE=${ALBERT_TEMPERATURE:-0.3}
     volumes:
       - app-data:/data
     networks:
