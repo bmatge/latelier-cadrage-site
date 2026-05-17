@@ -8,6 +8,7 @@ import multer from 'multer';
 import { authorize } from '../middleware/authorize.js';
 import { generateCadrage } from '../controllers/cadrage.controller.js';
 import { AppError } from '../domain/errors.js';
+import { createAlbertFromEnv } from '../services/albert.service.js';
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -18,6 +19,20 @@ const upload = multer({
 
 export function makeCadrageRouter(): Router {
   const router = Router();
+
+  // Endpoint léger pour que la SPA sache si afficher le bouton « Créer avec
+  // IA » sur la HomePage. Réponse 200 = router mounté ; absence de la route
+  // (404) = flag CADRAGE_ENABLED off. `configured` distingue « activé mais
+  // pas de clé Albert » (UI peut afficher un avertissement admin).
+  router.get('/cadrage/status', (_req, res) => {
+    const cfg = createAlbertFromEnv();
+    res.json({
+      enabled: true,
+      configured: cfg !== null,
+      model: cfg?.model ?? null,
+    });
+  });
+
   router.post(
     '/cadrage/generate',
     authorize('project:import', 'global'),

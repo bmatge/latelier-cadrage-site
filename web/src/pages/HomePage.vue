@@ -5,7 +5,7 @@
 //   - droite : "Nouveau projet" (form) + "Importer un projet" (file input)
 
 import { onMounted, ref } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
 import {
   listProjects,
   createProject,
@@ -14,11 +14,14 @@ import {
   importProjectBundle,
   type ProjectListItem,
 } from '../api/projects.api.js';
+import { getCadrageStatus, type CadrageStatus } from '../api/cadrage.api.js';
 import { useAuthStore } from '../stores/auth.js';
 import { useConfirm } from '../stores/confirm.js';
 import PageHeader from '../components/ui/PageHeader.vue';
+import CadrageModal from '../components/cadrage/CadrageModal.vue';
 
 const confirm = useConfirm();
+const router = useRouter();
 
 const auth = useAuthStore();
 const projects = ref<readonly ProjectListItem[]>([]);
@@ -33,6 +36,9 @@ const creating = ref(false);
 const importError = ref<string | null>(null);
 const importing = ref(false);
 
+const cadrageStatus = ref<CadrageStatus>({ enabled: false, configured: false, model: null });
+const cadrageModalOpen = ref(false);
+
 async function refresh(): Promise<void> {
   loading.value = true;
   try {
@@ -42,7 +48,20 @@ async function refresh(): Promise<void> {
   }
 }
 
-onMounted(refresh);
+async function refreshCadrageStatus(): Promise<void> {
+  cadrageStatus.value = await getCadrageStatus();
+}
+
+onMounted(() => {
+  void refresh();
+  void refreshCadrageStatus();
+});
+
+async function onCadrageImported(slug: string): Promise<void> {
+  cadrageModalOpen.value = false;
+  await refresh();
+  await router.push(`/p/${slug}/arborescence`);
+}
 
 function slugifyName(): void {
   if (!newSlug.value && newName.value) {
@@ -254,6 +273,29 @@ const canImport = () => auth.can('project:import');
           créer. Demandez à un admin l'attribution d'un rôle <code>editor</code>.
         </section>
 
+        <section v-if="canImport() && cadrageStatus.enabled" class="panel-card">
+          <h2 class="panel-card__title">Créer un projet avec IA</h2>
+          <p style="color: #666; font-size: 0.9rem; margin-top: 0">
+            Albert (modèle souverain DINUM) analyse un document descriptif (PDF, DOCX, CSV, TXT) et
+            propose une première arborescence + roadmap + catalogues, prête à importer.
+          </p>
+          <button
+            type="button"
+            class="fr-btn fr-icon-magic-line fr-btn--icon-left"
+            :disabled="!cadrageStatus.configured"
+            @click="cadrageModalOpen = true"
+          >
+            Lancer le cadrage IA
+          </button>
+          <p
+            v-if="!cadrageStatus.configured"
+            class="alert"
+            style="margin-top: 0.5rem; font-size: 0.85rem"
+          >
+            ⚠ Albert non configuré côté serveur (clé manquante). Contactez un admin.
+          </p>
+        </section>
+
         <section v-if="canImport()" class="panel-card">
           <h2 class="panel-card__title">Importer un projet</h2>
           <p style="color: #666; font-size: 0.9rem; margin-top: 0">
@@ -276,5 +318,12 @@ const canImport = () => auth.can('project:import');
         </section>
       </div>
     </div>
+
+    <CadrageModal
+      :open="cadrageModalOpen"
+      :status="cadrageStatus"
+      @close="cadrageModalOpen = false"
+      @imported="onCadrageImported"
+    />
   </div>
 </template>
