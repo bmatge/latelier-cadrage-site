@@ -9,10 +9,12 @@
 // SQL — leurs `CREATE IF NOT EXISTS` seraient certes idempotents, mais on
 // veut un baseline propre pour distinguer "appliqué v1" vs "appliqué v2".
 //
-// Le `ensureLegacyColumns()` post-migration est conservé pour ajouter la
-// colonne `project_id` aux tables historiques quand elle manque encore
-// (cas d'une DB v1 antérieure à la généralisation multi-projets). Cette
-// logique passera en migration formelle dans une phase ultérieure.
+// `ensureProjectIdColumns()` est un hook post-migration idempotent qui
+// garantit que `revisions / roadmap_revisions / comments` portent bien la
+// colonne `project_id` + son index. Indispensable pour les DBs v1 antérieures
+// au multi-projets ; no-op sur une install fresh v2. Pas convertible en
+// migration SQL pure car SQLite ne supporte pas `ALTER TABLE ... ADD COLUMN
+// IF NOT EXISTS` ; le check via `PRAGMA table_info` reste la voie propre.
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -73,7 +75,7 @@ export function runMigrations(db: Db, options: MigratorOptions = {}): readonly s
     newlyApplied.push(file);
   }
 
-  ensureLegacyColumns(db);
+  ensureProjectIdColumns(db);
   return newlyApplied;
 }
 
@@ -105,11 +107,11 @@ function applyBaselineIfNeeded(db: Db): void {
   baseline();
 }
 
-// Ajoute la colonne `project_id` aux tables historiques quand elle manque.
 // Idempotent : `PRAGMA table_info` détecte la présence de la colonne avant
-// l'ALTER. Sera remplacé par une migration formelle quand on ajoutera les
-// FK explicites (cf. plan v2, Phase 3+).
-function ensureLegacyColumns(db: Db): void {
+// l'ALTER ; `CREATE INDEX IF NOT EXISTS` couvre les index. Sur une install
+// v2 fresh, aucune des trois tables n'a `project_id` au CREATE — la fonction
+// l'ajoute systématiquement (overhead négligeable).
+function ensureProjectIdColumns(db: Db): void {
   const tables = ['revisions', 'roadmap_revisions', 'comments'] as const;
   for (const table of tables) {
     const cols = db.pragma(`table_info(${table})`) as readonly ColumnInfoRow[];
