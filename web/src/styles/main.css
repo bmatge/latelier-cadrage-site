@@ -825,16 +825,6 @@ label.field > span:first-child {
   padding: 0.6rem;
 }
 
-/* Legend (types) */
-.legend {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border-default-grey, #ddd);
-  margin-bottom: 0.5rem;
-}
-
 /* Pré JSON readonly */
 .json-preview {
   background: #f4f4f4;

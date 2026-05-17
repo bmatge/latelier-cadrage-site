@@ -522,18 +522,6 @@ async function handleImportBundle(event: Event): Promise<void> {
 
     <div class="tree-layout">
       <div class="tree-main">
-        <!-- Légende des types -->
-        <div class="legend">
-          <span
-            v-for="t in vocab.page_types"
-            :key="t.key"
-            class="type-pill"
-            :class="`type-${t.key}`"
-          >
-            {{ t.label }}
-          </span>
-        </div>
-
         <div v-if="conflictMessage" class="alert alert-warning">{{ conflictMessage }}</div>
         <div
           v-if="treeStore.persistTarget === 'local' && treeStore.localSavedAt"
