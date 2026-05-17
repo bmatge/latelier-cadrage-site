@@ -409,6 +409,22 @@ function toggleMenu(id: string): void {
 function closeMenus(): void {
   openMenuId.value = null;
 }
+function onMenuButtonClick(r: TreeNode): void {
+  // Si la rubrique a des enfants, un clic n'importe où sur le bouton ouvre
+  // le dropdown. Le nœud lui-même est sélectionnable via le 1er item du
+  // dropdown (cf. template). Sans enfants, on active directement.
+  if ((r.children ?? []).length > 0) {
+    toggleMenu(r.id);
+  } else {
+    activateRootChild(r.id);
+    closeMenus();
+  }
+}
+function selectFromMenu(rootId: string, nodeId: string): void {
+  activateRootChild(rootId);
+  selectedNodeId.value = nodeId;
+  closeMenus();
+}
 
 // Panneaux gauche/droit repliables pour passer la preview en plein écran
 const showSidebar = ref(true);
@@ -451,28 +467,27 @@ const breadcrumb = computed<TreeNode[]>(() => {
           type="button"
           class="subnav__btn"
           :class="{ 'is-active': r.id === activeRootChildId }"
-          @click="activateRootChild(r.id)"
+          @click="onMenuButtonClick(r)"
         >
           {{ r.id === treeStore.tree.id ? 'Accueil' : r.label }}
-          <span
-            v-if="(r.children ?? []).length"
-            class="subnav__caret"
-            @click.stop="toggleMenu(r.id)"
-            >▾</span
-          >
+          <span v-if="(r.children ?? []).length" class="subnav__caret">▾</span>
         </button>
         <div v-if="openMenuId === r.id && (r.children ?? []).length" class="subnav__dropdown">
+          <a
+            href="#"
+            class="subnav__dropdown-self"
+            :class="{ 'is-active': r.id === selectedNodeId }"
+            @click.prevent="selectFromMenu(r.id, r.id)"
+          >
+            {{ r.id === treeStore.tree.id ? 'Accueil' : r.label }}
+            <small style="color: #888; margin-left: 0.4rem">(la rubrique)</small>
+          </a>
           <a
             v-for="c in r.children ?? []"
             :key="c.id"
             href="#"
-            @click.prevent="
-              () => {
-                activateRootChild(r.id);
-                selectedNodeId = c.id;
-                closeMenus();
-              }
-            "
+            :class="{ 'is-active': c.id === selectedNodeId }"
+            @click.prevent="selectFromMenu(r.id, c.id)"
           >
             {{ c.label }}
             <small v-if="(c.children ?? []).length" style="color: #888; margin-left: 0.4rem">
