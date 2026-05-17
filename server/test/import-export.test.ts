@@ -232,6 +232,95 @@ describe('import-export bundle integrity', () => {
     expect(byId.get('D-WHITESPACE')).not.toHaveProperty('audience');
   });
 
+  it('normalise drupal_structure.taxonomies[*].options et content_types : objets {key,label} → strings (cas LLM Albert)', async () => {
+    // Albert (et d'autres LLM) extrapolent souvent les listes de labels en
+    // objets [{key, label}, ...] parce qu'ils voient ce shape ailleurs.
+    // Côté Drupal on n'a besoin que du label affichable — coerce vers
+    // string[] au boundary import.
+    const fx = await makeFixture();
+    const agent = await loginAs(fx, 'alice@test.fr', EDITOR);
+
+    const bundle = {
+      version: 1,
+      project: { slug: 'llm-objects', name: 'LLM objects', description: '' },
+      tree: { id: 'root', label: 'LLM objects', type: 'hub', children: [] },
+      roadmap: { meta: {}, items: [] },
+      data: {
+        drupal_structure: {
+          content_types: [
+            'page',
+            { key: 'article', label: 'Article' },
+            { label: 'Service' },
+            { name: 'Hub' },
+            { id: 'kit' },
+            '',
+            { label: '   ' },
+          ],
+          paragraphs: ['accordion'],
+          taxonomies: [
+            {
+              key: 'audience',
+              label: 'Audience',
+              multi: true,
+              options: [
+                { key: 'particuliers', label: 'Particuliers' },
+                { key: 'pros', label: 'Pros' },
+                'mixte',
+              ],
+            },
+          ],
+        },
+      },
+    };
+
+    await agent.post('/api/projects/import').send({ bundle });
+    const ds = (await agent.get('/api/projects/llm-objects/data/drupal_structure')).body.data;
+    expect(ds.content_types).toEqual(['page', 'Article', 'Service', 'Hub', 'kit']);
+    expect(ds.taxonomies[0].options).toEqual(['Particuliers', 'Pros', 'mixte']);
+  });
+
+  it('normalise dispositifs.meta.categories (objets {label} → strings)', async () => {
+    const fx = await makeFixture();
+    const agent = await loginAs(fx, 'alice@test.fr', EDITOR);
+    const bundle = {
+      version: 1,
+      project: { slug: 'cat-objects', name: 'Cat objects', description: '' },
+      tree: { id: 'root', label: 'Cat objects', type: 'hub', children: [] },
+      roadmap: { meta: {}, items: [] },
+      data: {
+        dispositifs: {
+          meta: {
+            categories: [
+              'Logement',
+              { label: 'Mobilités' },
+              { key: 'industrie', label: 'Industrie' },
+            ],
+          },
+          dispositifs: [],
+        },
+      },
+    };
+    await agent.post('/api/projects/import').send({ bundle });
+    const data = (await agent.get('/api/projects/cat-objects/data/dispositifs')).body.data;
+    expect(data.meta.categories).toEqual(['Logement', 'Mobilités', 'Industrie']);
+  });
+
+  it('PUT /data/drupal_structure normalise aussi (boundary write)', async () => {
+    const fx = await makeFixture();
+    const agent = await loginAs(fx, 'alice@test.fr', EDITOR);
+    await agent.put('/api/projects/portail-electrification/data/drupal_structure').send({
+      data: {
+        content_types: [{ label: 'Custom' }],
+        paragraphs: ['accordion'],
+        taxonomies: [{ key: 'x', label: 'X', multi: false, options: [{ label: 'Opt' }] }],
+      },
+    });
+    const ds = (await agent.get('/api/projects/portail-electrification/data/drupal_structure')).body
+      .data;
+    expect(ds.content_types).toEqual(['Custom']);
+    expect(ds.taxonomies[0].options).toEqual(['Opt']);
+  });
+
   it('PUT /data/dispositifs normalise aussi audience → audiences[] (boundary write)', async () => {
     const fx = await makeFixture();
     const agent = await loginAs(fx, 'alice@test.fr', EDITOR);

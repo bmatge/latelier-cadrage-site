@@ -58,7 +58,8 @@ Règles :
 - dispositifs : meta.categories[], items {id:"D-XX01",category,audiences:[],name,url,description,porteur,tutelle,type,maturite}. ATTENTION : audiences est TOUJOURS un tableau de keys du vocab (jamais une string, jamais un champ singulier audience).
 - mesures : meta.axes=[{id,label}], meta.objectifs={[axeId]:[{id,label}]}, items {id:"M1",axe,objectif|null,title,summary,audiences:[],deadline}.
 - objectifs : axes=[{id:"A1",name,objectives:[{id:"A1.O1",name,means:[{id:"A1.O1.M1",text,nodes:[],dispositifs:[]}]}]}].
-- drupal_structure : content_types[], paragraphs[]⊂{accordion,tabs,cards-row,tiles-row,auto-list,summary,button,highlight,callout,image-text,quote,table,video,download-block,download-links,cards-download,code}, taxonomies[{key,label,multi,options}].
+- drupal_structure : content_types[] (TABLEAU DE STRINGS, pas d'objets), paragraphs[]⊂{accordion,tabs,cards-row,tiles-row,auto-list,summary,button,highlight,callout,image-text,quote,table,video,download-block,download-links,cards-download,code}, taxonomies[{key,label,multi,options}] où options est aussi un TABLEAU DE STRINGS (labels Drupal — pas d'objets {key,label}).
+- dispositifs.meta.categories[] : TABLEAU DE STRINGS (catégories d'affichage, pas d'objets).
 - enums conseillés mais non bloquants : types∈{hub,editorial,service,simulator,map,external,marketplace,kit,form,private} ; deadline∈{juin,septembre,decembre,y2027} ; audiences∈{particuliers,coproprietes,collectivites,pros,industriels,agriculteurs,partenaires,agents,outremer}. Tu peux dévier si le projet le justifie (vocab projet-scoped).
 - Références croisées : tree.dispositifs[*]→dispositifs[*].id ; tree.mesures[*]→mesures[*].id ; roadmap.items[*].nodes[*]→tree.id ; mesures[*].axe→meta.axes[*].id ; means[*].nodes[*]→tree.id.
 - Catalogues vides acceptés : { dispositifs:{meta:{categories:[]},dispositifs:[]}, mesures:{meta:{axes:[],objectifs:{}},mesures:[]}, objectifs:{meta:{},axes:[]} }.

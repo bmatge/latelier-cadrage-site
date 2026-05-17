@@ -76,6 +76,22 @@
       "description": "Référence vers une `vocab.*.[].key` du même bundle. Validation runtime côté UI ; la validation de schéma est volontairement permissive (le vocab est libre par projet — cf. ADR-009)."
     },
 
+    "stringOrLabeled": {
+      "description": "Label simple : soit une string, soit un objet { label, key?, id?, name? } — les LLM ont tendance à promouvoir des listes de labels en objets {key,label}. Normalisé en string (extraction de `.label || .name || .id`) au boundary import/write côté serveur.",
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "anyOf": [
+            { "required": ["label"] },
+            { "required": ["name"] },
+            { "required": ["id"] }
+          ]
+        }
+      ]
+    },
+
     "treeRoot": {
       "type": "object",
       "required": ["id", "label"],
@@ -217,7 +233,7 @@
             "context":             { "type": "string" },
             "date":                { "type": "string" },
             "version":             { "type": "number" },
-            "categories":          { "type": "array", "items": { "type": "string" } },
+            "categories":          { "type": "array", "items": { "$ref": "#/$defs/stringOrLabeled" } },
             "note_methodologique": { "type": "string" }
           }
         },
@@ -388,7 +404,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "content_types": { "type": "array", "items": { "type": "string" } },
+        "content_types": { "type": "array", "items": { "$ref": "#/$defs/stringOrLabeled" } },
         "paragraphs": {
           "type": "array",
           "items": {
@@ -414,7 +430,7 @@
               "key":     { "type": "string" },
               "label":   { "type": "string" },
               "multi":   { "type": "boolean" },
-              "options": { "type": "array", "items": { "type": "string" } }
+              "options": { "type": "array", "items": { "$ref": "#/$defs/stringOrLabeled" } }
             }
           }
         }

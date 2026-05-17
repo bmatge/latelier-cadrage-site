@@ -264,6 +264,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+// Dispatcher unique pour la normalisation au boundary (import + write).
+// Idempotent : si la donnée est déjà au bon format, ne change rien.
+export function normalizeDataValue(key: string, value: unknown): unknown {
+  if (key === 'dispositifs') return normalizeDispositifs(value);
+  if (key === 'drupal_structure') return normalizeDrupalStructure(value);
+  return value;
+}
+
 // Le format historique posait `audience: string` (singulier) sur chaque
 // dispositif — divergence avec node.audiences[] / mesures.audiences[] qui
 // sont pluriel. Migration vers `audiences: string[]` (cf. bundle-schema.json).
@@ -274,8 +282,18 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 //    `audiences: ["x","y"]`
 // Les chaînes vides sont filtrées. Le champ `audience` est toujours supprimé
 // après migration pour ne pas porter deux sources de vérité.
+//
+// Côté meta, on normalise aussi `categories` en string[] (cf. coerceLabels)
+// pour absorber les LLM qui retournent `[{key, label}]`.
 export function normalizeDispositifs(value: unknown): unknown {
-  if (!isPlainObject(value) || !Array.isArray(value['dispositifs'])) return value;
+  if (!isPlainObject(value)) return value;
+  const meta = isPlainObject(value['meta']) ? value['meta'] : null;
+  const normalizedMeta =
+    meta && 'categories' in meta ? { ...meta, categories: coerceLabels(meta['categories']) } : meta;
+
+  if (!Array.isArray(value['dispositifs'])) {
+    return normalizedMeta ? { ...value, meta: normalizedMeta } : value;
+  }
   const items = (value['dispositifs'] as readonly unknown[]).map((raw) => {
     if (!isPlainObject(raw)) return raw;
     const { audience: legacy, audiences: existing, ...rest } = raw;
@@ -289,7 +307,53 @@ export function normalizeDispositifs(value: unknown): unknown {
     }
     return audiences && audiences.length > 0 ? { ...rest, audiences } : rest;
   });
-  return { ...value, dispositifs: items };
+  const out: Record<string, unknown> = { ...value, dispositifs: items };
+  if (normalizedMeta) out['meta'] = normalizedMeta;
+  return out;
+}
+
+// Promeut un array hétérogène `(string | { label?, name?, id? })[]` en
+// `string[]`. Les LLM extrapolent souvent les listes de labels en objets
+// `[{key, label}]` parce qu'ils voient ce shape ailleurs dans le format.
+// Côté app, on n'a besoin que du label affichable — on extrait donc dans
+// l'ordre `label > name > id`, on garde les strings telles quelles, et on
+// filtre les valeurs vides.
+function coerceLabels(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const v of value) {
+    if (typeof v === 'string') {
+      const trimmed = v.trim();
+      if (trimmed) out.push(trimmed);
+    } else if (isPlainObject(v)) {
+      const label =
+        (typeof v['label'] === 'string' && v['label']) ||
+        (typeof v['name'] === 'string' && v['name']) ||
+        (typeof v['id'] === 'string' && v['id']) ||
+        '';
+      const trimmed = label.trim();
+      if (trimmed) out.push(trimmed);
+    }
+  }
+  return out;
+}
+
+// `drupal_structure` n'a pas de champ legacy à migrer, mais ses listes
+// `content_types` et `taxonomies[*].options` sont des `string[]` que les
+// LLM promeuvent fréquemment en `[{key, label}]`. On normalise pour rester
+// alignés sur ce qu'attend l'UI (StructureCMS, MaquetteProperties).
+export function normalizeDrupalStructure(value: unknown): unknown {
+  if (!isPlainObject(value)) return value;
+  const out: Record<string, unknown> = { ...value };
+  if ('content_types' in out) out['content_types'] = coerceLabels(out['content_types']);
+  if (Array.isArray(out['taxonomies'])) {
+    out['taxonomies'] = (out['taxonomies'] as readonly unknown[]).map((tax) => {
+      if (!isPlainObject(tax)) return tax;
+      if (!('options' in tax)) return tax;
+      return { ...tax, options: coerceLabels(tax['options']) };
+    });
+  }
+  return out;
 }
 
 async function findFreeSlug(k: Kdb, base: string): Promise<string> {
@@ -379,7 +443,7 @@ export async function importProjectFromBundle(
     for (const key of EXPORT_KEYS) {
       const provided = dataBundle[key];
       const base = isPlainObject(provided) ? provided : fallbacks[key];
-      const normalized = key === 'dispositifs' ? normalizeDispositifs(base) : base;
+      const normalized = normalizeDataValue(key, base);
       await replaceProjectData(trx, id, key, JSON.stringify(normalized), input.sysUserId);
     }
     return id;
