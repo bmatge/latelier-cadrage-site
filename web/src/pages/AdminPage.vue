@@ -28,8 +28,23 @@ interface AuditEntry {
   readonly action: string;
   readonly created_at: string;
   readonly actor_id: number | null;
+  readonly actor_display_name: string | null;
+  readonly actor_email: string | null;
   readonly project_id: number | null;
   readonly details: string | null;
+}
+interface AdminSession {
+  readonly id: number;
+  readonly user_id: number;
+  readonly user_display_name: string;
+  readonly user_email: string | null;
+  readonly user_status: 'active' | 'disabled' | 'pending';
+  readonly ip: string | null;
+  readonly user_agent: string | null;
+  readonly created_at: string;
+  readonly last_seen_at: string | null;
+  readonly expires_at: string;
+  readonly revoked_at: string | null;
 }
 interface ProjectLite {
   readonly id: number;
@@ -37,12 +52,19 @@ interface ProjectLite {
   readonly name: string;
 }
 
+type SessionStatus = 'active' | 'revoked' | 'expired';
+
 const users = ref<readonly AdminUser[]>([]);
 const audit = ref<readonly AuditEntry[]>([]);
+const sessions = ref<readonly AdminSession[]>([]);
 const projects = ref<readonly ProjectLite[]>([]);
 const loading = ref(false);
 const errorMsg = ref<string | null>(null);
 const search = ref('');
+
+// Filtres section sessions : par défaut on cache les sessions
+// révoquées/expirées (uniquement les actives), un toggle les ramène.
+const sessionsShowAll = ref(false);
 
 // Invitation
 const invitingEmail = ref('');
@@ -58,19 +80,56 @@ async function refresh(): Promise<void> {
   loading.value = true;
   errorMsg.value = null;
   try {
-    const [u, a, p] = await Promise.all([
+    const [u, a, p, s] = await Promise.all([
       api.get('/admin/users'),
       api.get('/admin/audit-log', { params: { limit: 50 } }),
       api.get('/projects'),
+      api.get('/admin/sessions', {
+        params: sessionsShowAll.value
+          ? { limit: 100 }
+          : { include_revoked: 'false', include_expired: 'false', limit: 100 },
+      }),
     ]);
     users.value = (u.data as { users: readonly AdminUser[] }).users;
     audit.value = (a.data as { entries: readonly AuditEntry[] }).entries;
     projects.value = (p.data as { projects: readonly ProjectLite[] }).projects;
+    sessions.value = (s.data as { sessions: readonly AdminSession[] }).sessions;
   } catch (e) {
     errorMsg.value = (e as Error).message;
   } finally {
     loading.value = false;
   }
+}
+
+async function toggleShowAllSessions(): Promise<void> {
+  sessionsShowAll.value = !sessionsShowAll.value;
+  await refresh();
+}
+
+function sessionStatus(s: AdminSession): SessionStatus {
+  if (s.revoked_at !== null) return 'revoked';
+  if (new Date(s.expires_at).getTime() < Date.now()) return 'expired';
+  return 'active';
+}
+
+async function revokeSession(s: AdminSession): Promise<void> {
+  const ok = await confirmStore.ask({
+    title: `Révoquer la session de ${s.user_email ?? s.user_display_name} ?`,
+    message:
+      "L'utilisateur sera déconnecté immédiatement. Sa prochaine action API renverra 401, il devra redemander un lien magique.",
+    confirmLabel: 'Révoquer cette session',
+    danger: true,
+  });
+  if (!ok) return;
+  await api.delete(`/admin/sessions/${s.id}`);
+  await refresh();
+}
+
+function actorLabel(e: AuditEntry): string {
+  if (e.actor_email !== null && e.actor_email.length > 0) return e.actor_email;
+  if (e.actor_display_name !== null && e.actor_display_name.length > 0) return e.actor_display_name;
+  if (e.actor_id !== null) return `#${e.actor_id}`;
+  return '—';
 }
 
 onMounted(refresh);
@@ -283,6 +342,112 @@ function formatDate(iso: string): string {
       </table>
     </section>
 
+    <!-- Sessions -->
+    <section class="l-card">
+      <div class="toolbar" style="margin: 0 0 0.75rem">
+        <h2 style="margin: 0">
+          Sessions
+          <span style="color: #888; font-size: 0.85rem; font-weight: 400">
+            ({{ sessions.length }} affichées)
+          </span>
+        </h2>
+        <span class="spacer"></span>
+        <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem">
+          <input type="checkbox" :checked="sessionsShowAll" @change="toggleShowAllSessions" />
+          Inclure révoquées / expirées
+        </label>
+      </div>
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Utilisateur</th>
+            <th style="width: 80px">Statut</th>
+            <th style="width: 140px">Créée</th>
+            <th style="width: 140px">Dernière activité</th>
+            <th style="width: 140px">Expire</th>
+            <th>IP / navigateur</th>
+            <th style="width: 120px">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="sessions.length === 0">
+            <td colspan="7" style="color: #888; font-style: italic; padding: 1rem">
+              Aucune session à afficher.
+            </td>
+          </tr>
+          <tr v-for="s in sessions" :key="s.id">
+            <td>
+              <strong>{{ s.user_email ?? s.user_display_name }}</strong>
+              <small v-if="s.user_email" style="color: #666; display: block">
+                {{ s.user_display_name }}
+              </small>
+            </td>
+            <td>
+              <span
+                class="badge"
+                :class="{
+                  'badge-public': sessionStatus(s) === 'active',
+                  'badge-private': sessionStatus(s) !== 'active',
+                }"
+                :title="
+                  sessionStatus(s) === 'revoked'
+                    ? `Révoquée le ${formatDate(s.revoked_at ?? '')}`
+                    : sessionStatus(s) === 'expired'
+                      ? `Expirée le ${formatDate(s.expires_at)}`
+                      : ''
+                "
+              >
+                {{
+                  sessionStatus(s) === 'active'
+                    ? 'active'
+                    : sessionStatus(s) === 'revoked'
+                      ? 'révoquée'
+                      : 'expirée'
+                }}
+              </span>
+            </td>
+            <td>
+              <small>{{ formatDate(s.created_at) }}</small>
+            </td>
+            <td>
+              <small>{{ s.last_seen_at ? formatDate(s.last_seen_at) : '—' }}</small>
+            </td>
+            <td>
+              <small>{{ formatDate(s.expires_at) }}</small>
+            </td>
+            <td>
+              <small style="color: #666">{{ s.ip ?? '—' }}</small>
+              <small
+                v-if="s.user_agent"
+                style="
+                  display: block;
+                  color: #888;
+                  max-width: 280px;
+                  white-space: nowrap;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                "
+                :title="s.user_agent"
+              >
+                {{ s.user_agent }}
+              </small>
+            </td>
+            <td>
+              <button
+                v-if="sessionStatus(s) === 'active'"
+                class="fr-btn fr-btn--tertiary fr-btn--sm"
+                style="color: #ce0500"
+                @click="revokeSession(s)"
+              >
+                Révoquer
+              </button>
+              <span v-else style="color: #888; font-size: 0.85rem">—</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
     <!-- Audit log -->
     <section class="l-card">
       <h2 style="margin-top: 0">Journal d'audit (50 derniers)</h2>
@@ -291,7 +456,7 @@ function formatDate(iso: string): string {
           <tr>
             <th style="width: 140px">Quand</th>
             <th>Action</th>
-            <th style="width: 80px">Acteur</th>
+            <th>Acteur</th>
             <th style="width: 100px">Projet</th>
           </tr>
         </thead>
@@ -303,7 +468,11 @@ function formatDate(iso: string): string {
             <td>
               <code>{{ e.action }}</code>
             </td>
-            <td>{{ e.actor_id ?? '—' }}</td>
+            <td>
+              <span :title="e.actor_id !== null ? `id #${e.actor_id}` : 'aucun acteur'">
+                {{ actorLabel(e) }}
+              </span>
+            </td>
             <td>
               {{
                 e.project_id === null

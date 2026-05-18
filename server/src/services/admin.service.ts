@@ -5,10 +5,14 @@ import {
   listAllUsers,
   setUserStatus,
   listAuditEntries,
+  listSessionsForAdmin,
   type ListAuditOptions,
+  type ListSessionsOptions,
   type AdminUserRow,
   type AuditLogEntry,
+  type AdminSessionRow,
 } from '../repositories/admin.repo.js';
+import { revokeSession } from '../repositories/session.repo.js';
 import { listRolesForUser, grantRole, revokeRole } from '../repositories/user-role.repo.js';
 import { findUserById } from '../repositories/user.repo.js';
 import { logAudit } from './audit.service.js';
@@ -111,4 +115,31 @@ export async function readAuditLog(
   options: ListAuditOptions,
 ): Promise<readonly AuditLogEntry[]> {
   return listAuditEntries(k, options);
+}
+
+export async function listAdminSessions(
+  k: Kdb,
+  options: ListSessionsOptions,
+): Promise<readonly AdminSessionRow[]> {
+  return listSessionsForAdmin(k, options);
+}
+
+export interface AdminRevokeSessionInput {
+  readonly sessionId: number;
+  readonly actorId: number;
+  readonly ip?: string | undefined;
+  readonly userAgent?: string | undefined;
+}
+
+export async function adminRevokeSession(k: Kdb, input: AdminRevokeSessionInput): Promise<void> {
+  // Pas d'erreur si la session est déjà révoquée — le revoke est idempotent
+  // côté repo (where revoked_at IS NULL). L'audit-log indique l'intention.
+  await revokeSession(k, input.sessionId);
+  await logAudit(k, 'admin.session.revoke', {
+    actorId: input.actorId,
+    resourceType: 'session',
+    resourceId: String(input.sessionId),
+    ip: input.ip ?? null,
+    userAgent: input.userAgent ?? null,
+  });
 }

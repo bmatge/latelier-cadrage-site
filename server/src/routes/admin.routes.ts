@@ -12,5 +12,7 @@ export function makeAdminRouter(k: Kdb): Router {
   router.post('/admin/users/:id/roles', authorize('roles:grant', 'global'), ctrl.grant);
   router.delete('/admin/users/:id/roles', authorize('roles:revoke', 'global'), ctrl.revoke);
   router.get('/admin/audit-log', authorize('audit:read', 'global'), ctrl.audit);
+  router.get('/admin/sessions', authorize('sessions:read', 'global'), ctrl.listSessions);
+  router.delete('/admin/sessions/:id', authorize('sessions:revoke', 'global'), ctrl.revokeSession);
   return router;
 }

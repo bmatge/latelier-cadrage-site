@@ -23,7 +23,8 @@ export type AuditAction =
   | 'admin.user.disable'
   | 'admin.user.enable'
   | 'admin.role.grant'
-  | 'admin.role.revoke';
+  | 'admin.role.revoke'
+  | 'admin.session.revoke';
 
 export interface AuditContext {
   readonly actorId: number | null;

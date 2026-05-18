@@ -77,21 +77,45 @@ export function makeAuthController(opts: MakeAuthControllerOptions): {
       res.status(204).end();
     }),
     callback: asyncH(async (req, res) => {
+      const wantsJson = (req.get('accept') ?? '').includes('application/json');
       const parsed = CallbackQuerySchema.safeParse(req.query);
-      if (!parsed.success) throw new AppError(400, 'validation_error', 'invalid_token');
-      const result = await consumeCallback(opts.k, {
-        token: parsed.data.token,
-        ip: clientIp(req),
-        userAgent: clientUA(req),
-      });
-      res.cookie(SESSION_COOKIE_NAME, result.token, cookieOpts(req));
-      // Redirection 303 vers / pour terminer le flow magic link OU réponse
-      // JSON si Accept: application/json (utile pour la SPA et les tests).
-      if ((req.get('accept') ?? '').includes('application/json')) {
-        res.json({ user_id: result.userId, expires_at: result.expiresAt, created: result.created });
+      if (!parsed.success) {
+        // Token absent ou malformé : SPA gère via /login, navigateur classique
+        // redirigé vers la page de login avec un paramètre d'erreur.
+        if (wantsJson) throw new AppError(400, 'validation_error', 'invalid_token');
+        res.redirect(303, '/login?error=invalid_link');
         return;
       }
-      res.redirect(303, '/');
+      try {
+        const result = await consumeCallback(opts.k, {
+          token: parsed.data.token,
+          ip: clientIp(req),
+          userAgent: clientUA(req),
+        });
+        res.cookie(SESSION_COOKIE_NAME, result.token, cookieOpts(req));
+        if (wantsJson) {
+          res.json({
+            user_id: result.userId,
+            expires_at: result.expiresAt,
+            created: result.created,
+          });
+          return;
+        }
+        res.redirect(303, '/');
+      } catch (err) {
+        // Cas le plus fréquent en pratique : l'utilisateur RE-CLIQUE sur
+        // l'email après une 1re connexion réussie. Le token est désormais
+        // consommé → ce catch se déclenche. Si l'utilisateur a déjà une
+        // session valide (cookie posé par attach-user), on le renvoie
+        // silencieusement à la home plutôt que de l'angoisser avec une
+        // erreur JSON brute. Sinon, redirect vers /login avec un message.
+        if (wantsJson) throw err;
+        if (req.user) {
+          res.redirect(303, '/');
+          return;
+        }
+        res.redirect(303, '/login?error=invalid_or_expired_link');
+      }
     }),
     logout: asyncH(async (req, res) => {
       const sessionId = req.sessionId;

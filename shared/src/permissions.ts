@@ -42,6 +42,9 @@ export const PERMISSIONS = [
   'roles:revoke',
   // audit (admin)
   'audit:read',
+  // sessions (admin) — lecture des sessions actives + révocation forcée
+  'sessions:read',
+  'sessions:revoke',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

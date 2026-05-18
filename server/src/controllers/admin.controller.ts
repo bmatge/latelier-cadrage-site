@@ -3,14 +3,20 @@ import type { Kdb } from '../db/client.js';
 import { UnauthorizedError, ValidationError } from '../domain/errors.js';
 import { asyncH } from '../middleware/async-handler.js';
 import {
+  adminRevokeSession,
   disableUser,
   enableUser,
   grantRoleToUser,
+  listAdminSessions,
   listUsersWithRoles,
   readAuditLog,
   revokeRoleFromUser,
 } from '../services/admin.service.js';
-import { AuditQuerySchema, GrantRoleBodySchema } from '../schemas/admin.schemas.js';
+import {
+  AuditQuerySchema,
+  GrantRoleBodySchema,
+  SessionsQuerySchema,
+} from '../schemas/admin.schemas.js';
 
 function clientIp(req: Request): string | null {
   return req.ip ?? null;
@@ -24,6 +30,12 @@ function userIdParam(req: Request): number {
   return id;
 }
 
+function sessionIdParam(req: Request): number {
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id) || id <= 0) throw new ValidationError('invalid_id');
+  return id;
+}
+
 export function makeAdminController(k: Kdb): {
   listUsers: RequestHandler;
   disable: RequestHandler;
@@ -31,6 +43,8 @@ export function makeAdminController(k: Kdb): {
   grant: RequestHandler;
   revoke: RequestHandler;
   audit: RequestHandler;
+  listSessions: RequestHandler;
+  revokeSession: RequestHandler;
 } {
   return {
     listUsers: asyncH(async (_req, res) => {
@@ -95,6 +109,30 @@ export function makeAdminController(k: Kdb): {
         ...(parsed.data.before !== undefined ? { before: parsed.data.before } : {}),
       });
       res.json({ entries });
+    }),
+    listSessions: asyncH(async (req, res) => {
+      const parsed = SessionsQuerySchema.safeParse(req.query);
+      if (!parsed.success) throw new ValidationError('validation_error', 'invalid query');
+      const sessions = await listAdminSessions(k, {
+        ...(parsed.data.include_revoked !== undefined
+          ? { includeRevoked: parsed.data.include_revoked }
+          : {}),
+        ...(parsed.data.include_expired !== undefined
+          ? { includeExpired: parsed.data.include_expired }
+          : {}),
+        ...(parsed.data.limit !== undefined ? { limit: parsed.data.limit } : {}),
+      });
+      res.json({ sessions });
+    }),
+    revokeSession: asyncH(async (req, res) => {
+      if (!req.user) throw new UnauthorizedError();
+      await adminRevokeSession(k, {
+        sessionId: sessionIdParam(req),
+        actorId: req.user.id,
+        ip: clientIp(req) ?? undefined,
+        userAgent: clientUA(req) ?? undefined,
+      });
+      res.status(204).end();
     }),
   };
 }
