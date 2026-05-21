@@ -30,6 +30,7 @@ const tagline = computed(() => {
 const projectTabs = [
   { name: 'project-objectifs', label: 'Objectifs du site' },
   { name: 'project-tree', label: 'Arborescence' },
+  { name: 'project-parcours', label: 'Parcours' },
   { name: 'project-maquette', label: 'Maquette' },
   { name: 'project-roadmap', label: 'Roadmap' },
   { name: 'project-dispositifs', label: 'Ressources & services' },

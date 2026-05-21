@@ -14,6 +14,7 @@ import ProjectMaquettePage from '../pages/ProjectMaquettePage.vue';
 import ProjectHistoryPage from '../pages/ProjectHistoryPage.vue';
 import ProjectDispositifsPage from '../pages/ProjectDispositifsPage.vue';
 import ProjectMesuresPage from '../pages/ProjectMesuresPage.vue';
+import ProjectParcoursPage from '../pages/ProjectParcoursPage.vue';
 import { useAuthStore } from '../stores/auth.js';
 
 const routes: RouteRecordRaw[] = [
@@ -32,6 +33,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'roadmap', name: 'project-roadmap', component: ProjectRoadmapPage },
       { path: 'modele', name: 'project-data', component: ProjectDataPage },
       { path: 'objectifs', name: 'project-objectifs', component: ProjectObjectifsPage },
+      { path: 'parcours', name: 'project-parcours', component: ProjectParcoursPage },
       { path: 'maquette', name: 'project-maquette', component: ProjectMaquettePage },
       { path: 'historique', name: 'project-history', component: ProjectHistoryPage },
       { path: 'dispositifs', name: 'project-dispositifs', component: ProjectDispositifsPage },

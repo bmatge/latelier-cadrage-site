@@ -10,6 +10,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import {
+  DEFAULT_STORY_THEMES,
   LEGACY_VOCAB,
   slugify,
   uniqueKey,
@@ -36,7 +37,13 @@ const activeTab = ref<'vocab' | 'cms'>('vocab');
 // État ouvert/fermé de chaque accordéon (par défaut : tout ouvert pour
 // vocab tab, premier ouvert pour cms tab).
 const openSections = ref<Set<string>>(
-  new Set(['vocab-audiences', 'vocab-deadlines', 'vocab-page_types', 'cms-content_types']),
+  new Set([
+    'vocab-audiences',
+    'vocab-deadlines',
+    'vocab-page_types',
+    'vocab-story_themes',
+    'cms-content_types',
+  ]),
 );
 function isOpen(id: string): boolean {
   return openSections.value.has(id);
@@ -68,13 +75,18 @@ function ensureEditOrModal(): boolean {
 
 // ============= VOCABULAIRES PROJET =============
 
-const vocab = computed<VocabConfig>(() => {
+const vocab = computed<VocabConfig & { story_themes: readonly VocabEntry[] }>(() => {
   const data = vocabStore.data as VocabConfig | null;
-  if (data && Array.isArray(data.audiences)) return data;
-  return LEGACY_VOCAB;
+  const base = data && Array.isArray(data.audiences) ? data : LEGACY_VOCAB;
+  return {
+    audiences: base.audiences,
+    deadlines: base.deadlines,
+    page_types: base.page_types,
+    story_themes: base.story_themes ?? DEFAULT_STORY_THEMES,
+  };
 });
 
-type VocabKind = 'audiences' | 'deadlines' | 'page_types';
+type VocabKind = 'audiences' | 'deadlines' | 'page_types' | 'story_themes';
 
 const KIND_LABELS: Record<
   VocabKind,
@@ -97,6 +109,13 @@ const KIND_LABELS: Record<
     subtitle: 'Catégories de pages (Hub, Éditorial, Service, Simulateur…).',
     placeholder: 'Nouveau type de page…',
     itemSingular: 'type de page',
+  },
+  story_themes: {
+    title: 'Thèmes de parcours',
+    subtitle:
+      'Catégories de user stories (Navigation, Information, Action, Transaction…) utilisées dans la page Parcours.',
+    placeholder: 'Nouveau thème…',
+    itemSingular: 'thème',
   },
 };
 
@@ -153,6 +172,7 @@ const newVocabLabels = ref<Record<VocabKind, string>>({
   audiences: '',
   deadlines: '',
   page_types: '',
+  story_themes: '',
 });
 
 function commitNewVocab(kind: VocabKind): void {
@@ -378,7 +398,12 @@ const newOption = ref<Record<number, string>>({});
       >
         Vocabulaires projet
         <span class="count-badge count-badge--muted">
-          {{ vocab.audiences.length + vocab.deadlines.length + vocab.page_types.length }}
+          {{
+            vocab.audiences.length +
+            vocab.deadlines.length +
+            vocab.page_types.length +
+            vocab.story_themes.length
+          }}
         </span>
       </button>
       <button
@@ -403,7 +428,7 @@ const newOption = ref<Record<number, string>>({});
     <!-- ============= ONGLET VOCABULAIRES ============= -->
     <div v-show="activeTab === 'vocab'">
       <details
-        v-for="kind in ['audiences', 'deadlines', 'page_types'] as VocabKind[]"
+        v-for="kind in ['audiences', 'deadlines', 'page_types', 'story_themes'] as VocabKind[]"
         :key="kind"
         class="vocab-section"
         :open="isOpen(`vocab-${kind}`)"
