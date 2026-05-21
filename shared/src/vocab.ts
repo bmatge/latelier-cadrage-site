@@ -13,7 +13,19 @@ export interface VocabConfig {
   readonly audiences: readonly VocabEntry[];
   readonly deadlines: readonly VocabEntry[];
   readonly page_types: readonly VocabEntry[];
+  /**
+   * Thèmes de parcours utilisateur — facultatif (introduit après v1). Pages
+   * qui le consomment doivent retomber sur DEFAULT_STORY_THEMES si absent.
+   */
+  readonly story_themes?: readonly VocabEntry[];
 }
+
+export const DEFAULT_STORY_THEMES: readonly VocabEntry[] = [
+  { key: 'navigation', label: 'Navigation' },
+  { key: 'information', label: 'Information' },
+  { key: 'action', label: 'Action' },
+  { key: 'transaction', label: 'Transaction' },
+];
 
 export const LEGACY_VOCAB: VocabConfig = {
   audiences: [
@@ -45,6 +57,7 @@ export const LEGACY_VOCAB: VocabConfig = {
     { key: 'form', label: 'Formulaire' },
     { key: 'private', label: 'Espace privé' },
   ],
+  story_themes: DEFAULT_STORY_THEMES,
 };
 
 export const DEFAULT_VOCAB: VocabConfig = {
@@ -59,6 +72,7 @@ export const DEFAULT_VOCAB: VocabConfig = {
     { key: 'editorial', label: 'Éditorial' },
     { key: 'service', label: 'Service' },
   ],
+  story_themes: DEFAULT_STORY_THEMES,
 };
 
 const COMBINING_DIACRITICS = /[̀-ͯ]/g;

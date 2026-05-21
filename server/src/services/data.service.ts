@@ -4,7 +4,14 @@ import { getProjectData, upsertProjectData } from '../repositories/project-data.
 import { logAudit } from './audit.service.js';
 import { normalizeDataValue } from './project.service.js';
 
-const KEYS = new Set(['dispositifs', 'mesures', 'objectifs', 'drupal_structure', 'vocab']);
+const KEYS = new Set([
+  'dispositifs',
+  'mesures',
+  'objectifs',
+  'drupal_structure',
+  'vocab',
+  'user_stories',
+]);
 
 function assertValidKey(key: string): void {
   if (!KEYS.has(key)) throw new ValidationError('invalid_key');

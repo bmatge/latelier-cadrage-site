@@ -15,7 +15,13 @@ import {
   clearSandboxArea,
 } from './sandbox.js';
 
-export type DataKey = 'vocab' | 'dispositifs' | 'mesures' | 'objectifs' | 'drupal_structure';
+export type DataKey =
+  | 'vocab'
+  | 'dispositifs'
+  | 'mesures'
+  | 'objectifs'
+  | 'drupal_structure'
+  | 'user_stories';
 
 interface DataEntry {
   data: unknown;
@@ -131,3 +137,4 @@ export const useDispositifsStore = makeDataStore('dispositifs');
 export const useMesuresStore = makeDataStore('mesures');
 export const useObjectifsStore = makeDataStore('objectifs');
 export const useDrupalStructureStore = makeDataStore('drupal_structure');
+export const useUserStoriesStore = makeDataStore('user_stories');
