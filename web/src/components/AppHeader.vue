@@ -36,7 +36,6 @@ const projectTabs = [
   { name: 'project-dispositifs', label: 'Ressources & services' },
   { name: 'project-data', label: 'Modèle de données' },
   { name: 'project-mesures', label: 'Politiques publiques' },
-  { name: 'project-history', label: 'Historique' },
 ] as const;
 </script>
 
@@ -91,6 +90,15 @@ const projectTabs = [
                     Admin
                   </RouterLink>
                 </li>
+                <li v-if="inProject">
+                  <RouterLink
+                    class="fr-btn fr-btn--tertiary fr-btn--sm fr-icon-time-line fr-btn--icon-left"
+                    :to="{ name: 'project-history', params: { slug } }"
+                    title="Historique des révisions du projet"
+                  >
+                    Historique
+                  </RouterLink>
+                </li>
                 <li>
                   <RouterLink
                     class="fr-btn fr-btn--tertiary fr-btn--sm fr-icon-question-line fr-btn--icon-left"
@@ -98,16 +106,6 @@ const projectTabs = [
                   >
                     Aide
                   </RouterLink>
-                </li>
-                <li>
-                  <a
-                    class="fr-btn fr-btn--tertiary fr-btn--sm fr-icon-github-fill fr-btn--icon-left"
-                    href="https://github.com/bmatge/latelier-cadrage-site"
-                    target="_blank"
-                    rel="noopener"
-                  >
-                    Code source
-                  </a>
                 </li>
               </ul>
             </div>

@@ -23,7 +23,7 @@ const sections: Section[] = [
       { id: 'concept', label: 'Le concept' },
       { id: 'onboarding', label: 'Premier accès' },
       { id: 'creer-projet', label: 'Créer un projet' },
-      { id: 'editer-projet', label: 'Les 9 onglets d’un projet' },
+      { id: 'editer-projet', label: 'Les 8 onglets d’un projet' },
       { id: 'collaborer', label: 'Collaborer à plusieurs' },
       { id: 'exporter', label: 'Exporter / réimporter' },
       { id: 'roles', label: 'Rôles et permissions' },

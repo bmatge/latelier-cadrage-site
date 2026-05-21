@@ -517,6 +517,10 @@ function onStoryDragStart(e: DragEvent, parcoursId: string, storyId: string): vo
     e.preventDefault();
     return;
   }
+  // Évite que le dragstart bubble vers le parent `.parcours-group` qui
+  // appellerait son propre preventDefault (sa target n'est pas SA handle)
+  // et tuerait le drag.
+  e.stopPropagation();
   e.dataTransfer.effectAllowed = 'move';
   const payload: StoryDragPayload = { parcoursId, storyId };
   e.dataTransfer.setData(STORY_DRAG_MIME, JSON.stringify(payload));

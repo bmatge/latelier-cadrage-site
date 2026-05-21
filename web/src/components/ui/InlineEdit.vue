@@ -103,7 +103,7 @@ function onKeydown(e: KeyboardEvent): void {
 </script>
 
 <template>
-  <span class="inline-edit" :class="{ editing }">
+  <span class="inline-edit" :class="{ editing, 'inline-edit--textarea': textarea }">
     <template v-if="!editing">
       <span
         :class="[displayClass, 'inline-edit__display', { empty: isEmpty && placeholderItalic }]"
@@ -146,6 +146,17 @@ function onKeydown(e: KeyboardEvent): void {
 .inline-edit {
   display: inline-block;
   min-width: 2rem;
+}
+/* Mode textarea : le wrapper doit suivre la largeur du parent pour que
+   le `width: 100%` du textarea s'applique réellement (sinon inline-block
+   ne réserve que la largeur du contenu affiché → textarea étroit). */
+.inline-edit--textarea {
+  display: block;
+  width: 100%;
+}
+.inline-edit--textarea .inline-edit__display {
+  display: block;
+  width: 100%;
 }
 .inline-edit__display {
   display: inline-block;

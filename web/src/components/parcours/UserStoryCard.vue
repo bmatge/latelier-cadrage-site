@@ -1,10 +1,9 @@
 <script setup lang="ts">
-// Une user story = un bandeau d'en-tête (label + audience + theme) +
-// accordéon "Parcours" replié/déplié.
+// Une user story = un bandeau d'en-tête compact (handle + label +
+// description inline + audience + delete + toggle) sur 1 ligne, puis
+// le rail d'étapes en dessous (visible si non-collapsed).
 //
-// Émet `update` pour toute mutation : label, audience_key, theme_key,
-// description, steps. Le parent (ProjectParcoursPage) reconstitue la
-// data complète et la commit au store.
+// Émet `update` pour toute mutation, le parent reconstitue la data.
 
 import { computed } from 'vue';
 import type { UserStory, Screen, Step, VocabEntry } from '@latelier/shared';
@@ -29,7 +28,6 @@ const emit = defineEmits<{
   (e: 'remove'): void;
   (e: 'pick-screen', stepId: string, branchId: string | null, subStepId: string | null): void;
   (e: 'edit-attempt'): void;
-  /** Drop venu d'une autre story — relayé tel quel vers la page parente. */
   (
     e: 'cross-move',
     payload: {
@@ -55,9 +53,11 @@ function onStepsChange(next: Step[]): void {
   emit('update', { steps: next });
 }
 
-const audienceLabel = computed(
-  () => props.audiences.find((a) => a.key === props.story.audience_key)?.label ?? '—',
-);
+const open = computed(() => !props.story.collapsed);
+
+function toggleOpen(): void {
+  emit('update', { collapsed: !props.story.collapsed });
+}
 
 const stepCount = computed(() => {
   const top = props.story.steps.length;
@@ -67,14 +67,6 @@ const stepCount = computed(() => {
   );
   return top + sub;
 });
-
-const open = computed(() => !props.story.collapsed);
-
-function onToggle(e: Event): void {
-  const next = (e.target as HTMLDetailsElement).open;
-  if (next === open.value) return;
-  emit('update', { collapsed: !next });
-}
 </script>
 
 <template>
@@ -86,79 +78,72 @@ function onToggle(e: Event): void {
         aria-hidden="true"
         title="Glisser pour déplacer la user story"
       ></span>
-      <div class="story-card__title">
+      <button
+        type="button"
+        class="story-card__toggle fr-btn fr-btn--tertiary-no-outline fr-btn--sm"
+        :class="open ? 'fr-icon-arrow-down-s-line' : 'fr-icon-arrow-right-s-line'"
+        :title="open ? 'Replier le parcours' : 'Déplier le parcours'"
+        @click="toggleOpen"
+      ></button>
+      <div class="story-card__label">
         <InlineEdit
           :value="story.label"
           placeholder="Libellé de la user story"
-          display-class="story-card__title-display"
-          input-class="story-card__title-input"
+          display-class="story-card__label-display"
+          input-class="story-card__label-input"
           :can-edit="canEdit"
           @update="onLabelUpdate"
           @edit-attempt="emit('edit-attempt')"
         />
       </div>
-      <div class="story-card__meta">
-        <label class="story-card__field">
-          <span>Public</span>
-          <select
-            class="fr-select fr-select--sm"
-            :value="story.audience_key ?? ''"
-            :disabled="!canEdit"
-            @change="onAudienceChange"
-          >
-            <option value="">—</option>
-            <option v-for="a in audiences" :key="a.key" :value="a.key">{{ a.label }}</option>
-          </select>
-        </label>
-        <button
-          v-if="canEdit"
-          type="button"
-          class="fr-btn fr-btn--tertiary-no-outline fr-btn--sm fr-icon-delete-line"
-          title="Supprimer cette user story"
-          @click="emit('remove')"
-        >
-          Supprimer
-        </button>
-      </div>
-    </header>
-
-    <div class="story-card__summary">
-      <InlineEdit
-        :value="story.description ?? ''"
-        placeholder="Description courte (intention, contexte) — facultatif"
-        :textarea="true"
-        :rows="2"
-        :can-edit="canEdit"
-        @update="onDescUpdate"
-        @edit-attempt="emit('edit-attempt')"
-      />
-    </div>
-
-    <details class="story-card__details" :open="open" @toggle="onToggle">
-      <summary class="story-card__summary-row">
-        <span class="fr-icon-road-map-line fr-icon--sm" aria-hidden="true"></span>
-        Parcours
-        <span class="story-card__counts">
-          {{ stepCount }} étape{{ stepCount > 1 ? 's' : '' }}
-          <template v-if="audienceLabel !== '—'">· {{ audienceLabel }}</template>
-        </span>
-      </summary>
-      <div class="story-card__rail">
-        <StoryStepRail
-          :story-id="story.id"
-          :steps="story.steps"
+      <div class="story-card__desc">
+        <InlineEdit
+          :value="story.description ?? ''"
+          placeholder="Description courte — facultatif"
           :can-edit="canEdit"
-          :themes="themes"
-          :resolve-screen="resolveScreen"
-          @change="onStepsChange"
-          @pick-screen="
-            (stepId, branchId, subStepId) => emit('pick-screen', stepId, branchId, subStepId)
-          "
-          @cross-move="(payload) => emit('cross-move', payload)"
+          display-class="story-card__desc-display"
+          input-class="story-card__desc-input"
+          @update="onDescUpdate"
           @edit-attempt="emit('edit-attempt')"
         />
       </div>
-    </details>
+      <span class="story-card__count"> {{ stepCount }} étape{{ stepCount > 1 ? 's' : '' }} </span>
+      <label class="story-card__audience">
+        <select
+          class="fr-select fr-select--sm"
+          :value="story.audience_key ?? ''"
+          :disabled="!canEdit"
+          :title="`Public cible`"
+          @change="onAudienceChange"
+        >
+          <option value="">— Tout public</option>
+          <option v-for="a in audiences" :key="a.key" :value="a.key">{{ a.label }}</option>
+        </select>
+      </label>
+      <button
+        v-if="canEdit"
+        type="button"
+        class="fr-btn fr-btn--tertiary-no-outline fr-btn--sm fr-icon-delete-line"
+        title="Supprimer cette user story"
+        @click="emit('remove')"
+      ></button>
+    </header>
+
+    <div v-if="open" class="story-card__rail">
+      <StoryStepRail
+        :story-id="story.id"
+        :steps="story.steps"
+        :can-edit="canEdit"
+        :themes="themes"
+        :resolve-screen="resolveScreen"
+        @change="onStepsChange"
+        @pick-screen="
+          (stepId, branchId, subStepId) => emit('pick-screen', stepId, branchId, subStepId)
+        "
+        @cross-move="(payload) => emit('cross-move', payload)"
+        @edit-attempt="emit('edit-attempt')"
+      />
+    </div>
   </article>
 </template>
 
@@ -166,99 +151,84 @@ function onToggle(e: Event): void {
 .story-card {
   background: #fff;
   border: 1px solid #ddd;
-  border-radius: 6px;
-  padding: 1rem 1.25rem;
+  border-radius: 4px;
+  padding: 0.4rem 0.6rem;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  gap: 0.4rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 .story-card__head {
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 .story-card__drag-handle {
   color: #999;
   cursor: grab;
-  font-size: 1.1rem;
-  padding: 0.25rem 0.4rem 0.25rem 0;
-  align-self: center;
+  font-size: 1rem;
+  padding: 0.1rem 0.25rem;
   flex-shrink: 0;
 }
 .story-card__drag-handle:active {
   cursor: grabbing;
   color: var(--text-action-high-blue-france, #000091);
 }
-.story-card__title {
-  flex: 1;
-  min-width: 200px;
+.story-card__toggle {
+  flex-shrink: 0;
+  padding: 0.15rem 0.3rem !important;
 }
-.story-card__title-display {
-  font-size: 1.15rem;
+.story-card__label {
+  flex: 1 0 12rem;
+  min-width: 8rem;
+}
+:deep(.story-card__label-display) {
+  font-size: 1rem;
   font-weight: 600;
   color: #161616;
 }
-.story-card__title-input {
-  font-size: 1.15rem;
+:deep(.story-card__label-input) {
+  font-size: 1rem;
   font-weight: 600;
 }
-.story-card__meta {
-  display: flex;
-  gap: 0.75rem;
-  align-items: flex-end;
-  flex-wrap: wrap;
+.story-card__desc {
+  flex: 2 1 14rem;
+  min-width: 0;
+  overflow: hidden;
 }
-.story-card__field {
-  display: flex;
-  flex-direction: column;
-  font-size: 0.75rem;
+:deep(.story-card__desc-display) {
+  font-size: 0.85rem;
   color: #666;
-  gap: 0.15rem;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 100%;
 }
-.story-card__field select {
-  min-width: 8rem;
-  padding: 0.2rem 0.4rem;
+:deep(.story-card__desc-input) {
   font-size: 0.85rem;
 }
-.story-card__summary {
-  color: #444;
+.story-card__count {
+  font-size: 0.75rem;
+  color: #888;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.story-card__details {
-  border-top: 1px solid #eee;
-  padding-top: 0.5rem;
+.story-card__audience {
+  flex-shrink: 0;
 }
-.story-card__summary-row {
-  cursor: pointer;
-  font-weight: 600;
-  color: #000091;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  list-style: none;
-  padding: 0.3rem 0;
+.story-card__audience select {
+  font-size: 0.8rem;
+  padding: 0.15rem 0.4rem;
+  max-width: 9rem;
 }
-.story-card__summary-row::-webkit-details-marker {
-  display: none;
-}
-.story-card__summary-row::before {
-  content: '▸';
-  display: inline-block;
-  transition: transform 0.15s;
-  color: #000091;
-}
-.story-card__details[open] .story-card__summary-row::before {
-  transform: rotate(90deg);
-}
-.story-card__counts {
-  color: #777;
-  font-weight: 400;
-  font-size: 0.85rem;
-  margin-left: auto;
+.story-card__head .fr-btn--sm {
+  padding: 0.15rem 0.3rem;
 }
 .story-card__rail {
-  margin-top: 0.5rem;
+  margin-top: 0.25rem;
 }
 </style>
