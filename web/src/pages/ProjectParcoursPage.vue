@@ -109,20 +109,34 @@ const nodeIndex = computed<Map<string, TreeNode>>(() => {
   return out;
 });
 
-// Index des paragraphs par nodeId (pour le picker block)
+// Index des blocs adressables par nodeId. Source principale :
+// `node.maquette.paragraphs` (v2, édité dans /maquette). Fallback :
+// `node.blocks` (legacy v1, encore visible dans le badge ▦ de
+// TreeNodeRow). Filtre permissif : on garde tout bloc avec au moins
+// un id string (indispensable comme ref). `code` peut être absent
+// → fallback `type` ou "(bloc)". Si pas d'id, on synthétise une ref
+// stable par index pour que le bloc soit au moins sélectionnable.
 const paragraphsByNode = computed<Map<string, ParagraphLite[]>>(() => {
   const out = new Map<string, ParagraphLite[]>();
   const walk = (n: TreeNode): void => {
-    const maquette = n['maquette'] as
-      | { paragraphs?: Array<{ id?: unknown; code?: unknown }> }
-      | undefined;
-    const list = Array.isArray(maquette?.paragraphs) ? maquette!.paragraphs! : [];
+    const maquette = n['maquette'] as { paragraphs?: Array<Record<string, unknown>> } | undefined;
+    const fromMaquette = Array.isArray(maquette?.paragraphs) ? maquette!.paragraphs! : [];
+    const fromLegacy = Array.isArray(n['blocks'])
+      ? (n['blocks'] as Array<Record<string, unknown>>)
+      : [];
+    const list = fromMaquette.length ? fromMaquette : fromLegacy;
     const cleaned: ParagraphLite[] = [];
-    for (const p of list) {
-      if (typeof p?.id === 'string' && typeof p?.code === 'string') {
-        cleaned.push({ id: p.id, code: p.code });
-      }
-    }
+    list.forEach((p, idx) => {
+      if (!p || typeof p !== 'object') return;
+      const id = typeof p['id'] === 'string' && p['id'] ? p['id'] : `legacy-${idx}`;
+      const code =
+        typeof p['code'] === 'string' && p['code']
+          ? p['code']
+          : typeof p['type'] === 'string' && p['type']
+            ? (p['type'] as string)
+            : '(bloc)';
+      cleaned.push({ id, code });
+    });
     if (cleaned.length) out.set(n.id, cleaned);
     for (const c of n.children ?? []) walk(c);
   };

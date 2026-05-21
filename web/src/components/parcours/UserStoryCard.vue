@@ -138,7 +138,7 @@ const stepCount = computed(() => {
       @toggle="open = ($event.target as HTMLDetailsElement).open"
     >
       <summary class="story-card__summary-row">
-        <span class="fr-icon-route-line fr-icon--sm" aria-hidden="true"></span>
+        <span class="fr-icon-road-map-line fr-icon--sm" aria-hidden="true"></span>
         Parcours
         <span class="story-card__counts">
           {{ stepCount }} étape{{ stepCount > 1 ? 's' : '' }}
