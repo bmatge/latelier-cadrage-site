@@ -51,8 +51,29 @@ onMounted(async () => {
       mesuresStore.hydrate(slug.value),
       objectifsStore.hydrate(slug.value),
     ]);
+    // Si on arrive via `?node=<id>` (lien venant de /parcours), on
+    // sélectionne directement ce nœud — sinon il faut d'abord drilldown
+    // dans l'arbre. La query est parsée dès la création du ref ; ce check
+    // post-hydrate vérifie juste qu'il existe vraiment dans l'arbre.
+    const queryNode = route.query['node'];
+    if (typeof queryNode === 'string' && treeStore.tree) {
+      if (find(treeStore.tree, queryNode)) {
+        selectedId.value = queryNode;
+      }
+    }
   }
 });
+
+// Si la query change après mount (navigation depuis /parcours par exemple),
+// on update la sélection.
+watch(
+  () => route.query['node'],
+  (nodeId) => {
+    if (typeof nodeId === 'string' && treeStore.tree && find(treeStore.tree, nodeId)) {
+      selectedId.value = nodeId;
+    }
+  },
+);
 
 watch(slug, async (s) => {
   if (s) {
@@ -68,7 +89,9 @@ watch(slug, async (s) => {
 
 const search = ref('');
 const deadlineFilter = ref<string>('all');
-const selectedId = ref<string>('root');
+const selectedId = ref<string>(
+  typeof route.query['node'] === 'string' ? route.query['node'] : 'root',
+);
 const collapsed = ref<Set<string>>(new Set());
 const conflictMessage = ref<string | null>(null);
 

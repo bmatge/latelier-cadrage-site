@@ -2,15 +2,14 @@
 // Une carte d'écran dans le fil de fer d'un parcours.
 //
 // Structure compacte :
-//   - En-tête : pastille kind (clic = picker) + sélecteur thème + label
-//     de l'écran + boutons outils
-//   - Corps : action utilisateur + commentaires (single-line par défaut,
-//     extension vertical par contenu)
+//   - En-tête : pastille kind (clic = picker) + label + boutons outils
+//     (ouvrir l'entité dans sa page · branche · supprimer)
+//   - Corps : tag thème (popover) + action utilisateur + commentaires
 //
-// L'écran est passé en entier, c'est le parent qui résout les refs vers
-// les labels lisibles et les fournit via `screenLabel`/`screenSubtitle`.
+// L'écran est passé en entier, le parent résout les refs vers les labels
+// lisibles et les fournit via `screenLabel`/`screenSubtitle`.
 
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import type { Screen, LeafStep, VocabEntry } from '@latelier/shared';
 import InlineEdit from '../ui/InlineEdit.vue';
 import { KIND_STYLES } from './screen-kinds.js';
@@ -19,11 +18,8 @@ const props = defineProps<{
   readonly step: LeafStep;
   readonly canEdit: boolean;
   readonly screenLabel: string;
-  /** Affichage "X » Y" pour un screen=block (X = node, Y = code paragraph). */
   readonly screenSubtitle?: string | undefined;
-  /** Désactive les boutons branche (utilisé dans les leaf steps des branches). */
   readonly noBranches?: boolean | undefined;
-  /** Thèmes disponibles pour le sélecteur (vocab.story_themes). */
   readonly themes: readonly VocabEntry[];
 }>();
 
@@ -35,16 +31,50 @@ const emit = defineEmits<{
   (e: 'add-branch'): void;
   (e: 'remove'): void;
   (e: 'edit-attempt'): void;
+  /** Demande au parent d'ouvrir l'entité référencée (node/block/dispositif)
+   * dans sa page d'édition dédiée. Pas émis pour kind='ghost'. */
+  (e: 'open-entity'): void;
 }>();
 
 const screen = computed<Screen>(() => props.step.screen);
 const style = computed(() => KIND_STYLES[screen.value.kind]);
 const themeKey = computed(() => screen.value.theme_key ?? '');
+const themeEntry = computed(() => props.themes.find((t) => t.key === themeKey.value) ?? null);
+const canOpenEntity = computed(() => screen.value.kind !== 'ghost' && !!screen.value.ref);
 
-function onThemeChange(e: Event): void {
-  const v = (e.target as HTMLSelectElement).value;
-  emit('update:theme', v || null);
+const themeOpen = ref(false);
+function toggleTheme(): void {
+  if (!props.canEdit) {
+    emit('edit-attempt');
+    return;
+  }
+  themeOpen.value = !themeOpen.value;
 }
+function pickTheme(k: string | null): void {
+  emit('update:theme', k);
+  themeOpen.value = false;
+}
+function onThemeBlur(e: FocusEvent): void {
+  // Ferme le popover si focus part en dehors
+  const next = e.relatedTarget as HTMLElement | null;
+  const wrap = (e.currentTarget as HTMLElement).closest('.step-card__theme');
+  if (!next || !wrap?.contains(next)) themeOpen.value = false;
+}
+
+/**
+ * Palette des thèmes par défaut (vocab.story_themes). Si l'utilisateur a
+ * créé un thème custom, on retombe sur le gris neutre.
+ */
+const THEME_PALETTE: Readonly<Record<string, { bg: string; fg: string }>> = {
+  navigation: { bg: '#e3e3fd', fg: '#000091' },
+  information: { bg: '#dffdfb', fg: '#0d5870' },
+  action: { bg: '#b8fec9', fg: '#18753c' },
+  transaction: { bg: '#fee7fc', fg: '#6e445a' },
+};
+
+const themePalette = computed(() => {
+  return THEME_PALETTE[themeKey.value] ?? { bg: '#eee', fg: '#555' };
+});
 </script>
 
 <template>
@@ -71,6 +101,13 @@ function onThemeChange(e: Event): void {
       </div>
       <div class="step-card__tools">
         <button
+          v-if="canOpenEntity"
+          type="button"
+          class="fr-btn fr-btn--tertiary-no-outline fr-btn--sm fr-icon-external-link-line"
+          title="Ouvrir cet écran dans sa page d'édition"
+          @click="emit('open-entity')"
+        ></button>
+        <button
           v-if="!noBranches"
           type="button"
           class="fr-btn fr-btn--tertiary-no-outline fr-btn--sm fr-icon-git-branch-line"
@@ -81,25 +118,66 @@ function onThemeChange(e: Event): void {
         <button
           type="button"
           class="fr-btn fr-btn--tertiary-no-outline fr-btn--sm fr-icon-delete-line"
-          title="Supprimer l'étape"
+          :title="canEdit ? 'Supprimer l\'étape' : 'Activer l\'édition pour supprimer'"
           :disabled="!canEdit"
-          @click="emit('remove')"
+          @click="canEdit ? emit('remove') : emit('edit-attempt')"
         ></button>
       </div>
     </header>
     <div class="step-card__body">
-      <label class="step-card__theme">
-        <span class="step-card__theme-label">Thème :</span>
-        <select
-          class="step-card__theme-select"
-          :value="themeKey"
-          :disabled="!canEdit"
-          @change="onThemeChange"
+      <div class="step-card__theme" @focusout="onThemeBlur">
+        <button
+          v-if="themeEntry"
+          type="button"
+          class="step-card__theme-tag"
+          :style="{ background: themePalette.bg, color: themePalette.fg }"
+          :title="canEdit ? 'Changer le thème' : 'Thème'"
+          @click="toggleTheme"
         >
-          <option value="">—</option>
-          <option v-for="t in themes" :key="t.key" :value="t.key">{{ t.label }}</option>
-        </select>
-      </label>
+          {{ themeEntry.label }}
+        </button>
+        <button
+          v-else
+          type="button"
+          class="step-card__theme-add fr-icon-add-line"
+          :title="canEdit ? 'Ajouter un thème' : 'Activer l\'édition pour définir un thème'"
+          :disabled="!canEdit"
+          @click="toggleTheme"
+        >
+          Thème
+        </button>
+        <div v-if="themeOpen" class="step-card__theme-menu" role="menu">
+          <button
+            v-if="themeEntry"
+            type="button"
+            role="menuitem"
+            class="step-card__theme-option step-card__theme-option--remove"
+            @click="pickTheme(null)"
+          >
+            <span class="fr-icon-close-line fr-icon--sm" aria-hidden="true"></span>
+            Retirer le thème
+          </button>
+          <button
+            v-for="t in themes"
+            :key="t.key"
+            type="button"
+            role="menuitem"
+            class="step-card__theme-option"
+            :class="{ 'step-card__theme-option--active': t.key === themeKey }"
+            @click="pickTheme(t.key)"
+          >
+            <span
+              class="step-card__theme-swatch"
+              :style="{
+                background: THEME_PALETTE[t.key]?.bg ?? '#eee',
+                borderColor: THEME_PALETTE[t.key]?.fg ?? '#aaa',
+              }"
+              aria-hidden="true"
+            ></span>
+            {{ t.label }}
+          </button>
+        </div>
+      </div>
       <InlineEdit
         :value="step.action"
         placeholder="Action utilisateur…"
@@ -188,25 +266,95 @@ function onThemeChange(e: Event): void {
   gap: 0.35rem;
   font-size: 0.85rem;
 }
+
+/* Tag thème + popover de sélection */
 .step-card__theme {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.75rem;
-  color: #666;
 }
-.step-card__theme-label {
+.step-card__theme-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid currentColor;
+  background: var(--bg, #eee);
+}
+.step-card__theme-tag:hover {
+  filter: brightness(0.95);
+}
+.step-card__theme-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: #888;
+  background: transparent;
+  border: 1px dashed #ccc;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem 0.1rem 0.4rem;
+  cursor: pointer;
+}
+.step-card__theme-add:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.step-card__theme-add:hover:not(:disabled) {
+  border-color: #888;
+  color: #444;
+}
+.step-card__theme-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.25rem;
+  z-index: 20;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  min-width: 12rem;
+  padding: 0.25rem;
+}
+.step-card__theme-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.85rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 3px;
+}
+.step-card__theme-option:hover {
+  background: #f3f3ff;
+}
+.step-card__theme-option--active {
+  font-weight: 600;
+  background: #f7f7fc;
+}
+.step-card__theme-option--remove {
+  color: #777;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 0.15rem;
+  padding-bottom: 0.4rem;
+}
+.step-card__theme-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid;
   flex-shrink: 0;
 }
-.step-card__theme-select {
-  flex: 1;
-  font-size: 0.75rem;
-  padding: 0.1rem 0.3rem;
-  border: 1px solid #ccc;
-  border-radius: 3px;
-  background: #fff;
-  min-width: 0;
-}
+
 .step-card :deep(.step-card__line) {
   font-size: 0.85rem;
   line-height: 1.3;

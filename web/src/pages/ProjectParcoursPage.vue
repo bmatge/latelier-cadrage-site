@@ -14,7 +14,7 @@
 //   - steps déjà gérés par StoryStepRail (cf. composant)
 
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import {
   DEFAULT_STORY_THEMES,
   LEGACY_VOCAB,
@@ -50,6 +50,7 @@ interface ParagraphLite {
 }
 
 const route = useRoute();
+const router = useRouter();
 const slug = computed(() => String(route.params['slug'] ?? ''));
 
 const storyStore = useUserStoriesStore();
@@ -395,6 +396,34 @@ async function promoteToDispositif(payload: { title: string; description: string
   dispStore.setData({ ...raw, dispositifs: list });
   await dispStore.save();
   applyScreen({ kind: 'dispositif', ref: newId2, title: payload.title });
+}
+
+// ----- Ouverture d'une entité dans sa page d'édition -----
+//
+// Le step pointe vers une entité (node, bloc, dispositif). Le bouton
+// « ouvrir » de la carte step demande à naviguer vers la page d'édition
+// concernée, avec une query string qui pré-sélectionne l'entité.
+//   - kind='node'       → /p/:slug/arborescence?node=<id>
+//   - kind='block'      → /p/:slug/maquette?node=<nodeId>&paragraph=<pId>
+//   - kind='dispositif' → /p/:slug/dispositifs?id=<id>
+//   - kind='ghost'      → ignoré (rien à ouvrir)
+
+function onOpenEntity(screen: Screen): void {
+  if (!screen.ref) return;
+  const params = { slug: slug.value };
+  if (screen.kind === 'node') {
+    void router.push({ name: 'project-tree', params, query: { node: screen.ref } });
+  } else if (screen.kind === 'block') {
+    const parsed = parseBlockRef(screen.ref);
+    if (!parsed) return;
+    void router.push({
+      name: 'project-maquette',
+      params,
+      query: { node: parsed.nodeId, paragraph: parsed.paragraphId },
+    });
+  } else if (screen.kind === 'dispositif') {
+    void router.push({ name: 'project-dispositifs', params, query: { id: screen.ref } });
+  }
 }
 
 // ----- Drag des STEPS cross-story (relais venant de UserStoryCard) -----
@@ -767,6 +796,7 @@ const filteredParcours = computed<readonly Parcours[]>(() => {
               @pick-screen="
                 (stepId, branchId, subStepId) => openPicker(story.id, stepId, branchId, subStepId)
               "
+              @open-entity="onOpenEntity"
               @cross-move="(payload) => onCrossMoveStep({ ...payload, targetStoryId: story.id })"
               @edit-attempt="ensureEditOrModal"
             />

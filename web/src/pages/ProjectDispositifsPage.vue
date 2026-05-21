@@ -57,8 +57,19 @@ const auth = useAuthStore();
 const sandbox = useSandboxStore();
 const confirmStore = useConfirm();
 
-onMounted(() => slug.value && store.hydrate(slug.value));
+onMounted(async () => {
+  if (slug.value) await store.hydrate(slug.value);
+  // Sélection initiale via `?id=<dispositifId>` (lien venant de /parcours).
+  const queryId = route.query['id'];
+  if (typeof queryId === 'string') selectedId.value = queryId;
+});
 watch(slug, (s) => s && store.hydrate(s));
+watch(
+  () => route.query['id'],
+  (id) => {
+    if (typeof id === 'string') selectedId.value = id;
+  },
+);
 
 const canEdit = useCanEdit('data:write', () => slug.value);
 

@@ -47,6 +47,8 @@ const emit = defineEmits<{
   (e: 'change', steps: Step[]): void;
   (e: 'pick-screen', stepId: string, branchId: string | null, subStepId: string | null): void;
   (e: 'edit-attempt'): void;
+  /** Demande d'ouvrir l'entité (node/block/dispositif) référencée par un step. */
+  (e: 'open-entity', screen: Screen): void;
   /**
    * Drop venu d'une autre story. Le parent (page) orchestre le retrait
    * dans la story source et l'insertion ici. Limité au rail principal
@@ -379,6 +381,7 @@ function setSubStepTheme(
               @change-screen="emit('pick-screen', step.id, null, null)"
               @add-branch="addBranch(step.id)"
               @remove="removeStep(step.id)"
+              @open-entity="emit('open-entity', step.screen)"
               @edit-attempt="emit('edit-attempt')"
             />
           </div>
@@ -431,6 +434,7 @@ function setSubStepTheme(
                       @update:theme="(v) => setSubStepTheme(step.id, branch.id, sub.id, v)"
                       @change-screen="emit('pick-screen', step.id, branch.id, sub.id)"
                       @remove="removeSubStep(step.id, branch.id, sub.id)"
+                      @open-entity="emit('open-entity', sub.screen)"
                       @edit-attempt="emit('edit-attempt')"
                     />
                   </div>

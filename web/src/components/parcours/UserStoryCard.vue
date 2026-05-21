@@ -28,6 +28,7 @@ const emit = defineEmits<{
   (e: 'remove'): void;
   (e: 'pick-screen', stepId: string, branchId: string | null, subStepId: string | null): void;
   (e: 'edit-attempt'): void;
+  (e: 'open-entity', screen: Screen): void;
   (
     e: 'cross-move',
     payload: {
@@ -143,6 +144,7 @@ const stepCount = computed(() => {
         @pick-screen="
           (stepId, branchId, subStepId) => emit('pick-screen', stepId, branchId, subStepId)
         "
+        @open-entity="(screen) => emit('open-entity', screen)"
         @cross-move="(payload) => emit('cross-move', payload)"
         @edit-attempt="emit('edit-attempt')"
       />
