@@ -26,7 +26,14 @@ import { hasPermission } from './rbac.service.js';
 import type { RoleGrant } from '@latelier/shared';
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/;
-const EXPORT_KEYS = ['dispositifs', 'mesures', 'objectifs', 'drupal_structure', 'vocab'] as const;
+const EXPORT_KEYS = [
+  'dispositifs',
+  'mesures',
+  'objectifs',
+  'drupal_structure',
+  'vocab',
+  'user_stories',
+] as const;
 
 export async function listProjects(
   k: Kdb,
@@ -136,6 +143,7 @@ export async function createProject(k: Kdb, input: CreateProjectInput): Promise<
       ['objectifs', { axes: [] }],
       ['drupal_structure', DEFAULT_DRUPAL_STRUCTURE],
       ['vocab', DEFAULT_VOCAB],
+      ['user_stories', { stories: [] }],
     ];
     for (const [key, value] of seeds) {
       await replaceProjectData(trx, projectId, key, JSON.stringify(value), sysUser.id);
@@ -439,6 +447,7 @@ export async function importProjectFromBundle(
       objectifs: { axes: [] },
       drupal_structure: DEFAULT_DRUPAL_STRUCTURE,
       vocab: LEGACY_VOCAB,
+      user_stories: { stories: [] },
     };
     for (const key of EXPORT_KEYS) {
       const provided = dataBundle[key];

@@ -266,6 +266,50 @@ function applyScreen(screen: Screen): void {
   void commit({ stories: next });
 }
 
+// ----- Promotion ghost → entité réelle (Phase C) -----
+
+async function promoteToNode(payload: { title: string; description: string }): Promise<void> {
+  if (!ensureEditOrModal()) return;
+  if (!treeStore.tree) return;
+  const newId = 'n' + Math.random().toString(36).slice(2, 8);
+  const newNode: TreeNode = {
+    id: newId,
+    label: payload.title,
+    tldr: payload.description,
+    types: ['editorial'],
+    audiences: [],
+    dispositifs: [],
+    mesures: [],
+    blocks: [],
+    children: [],
+  };
+  const newTree: TreeNode = {
+    ...treeStore.tree,
+    children: [...(treeStore.tree.children ?? []), newNode],
+  };
+  treeStore.setTree(newTree);
+  await treeStore.save('Création depuis Parcours');
+  applyScreen({ kind: 'node', ref: newId, title: payload.title });
+}
+
+async function promoteToDispositif(payload: { title: string; description: string }): Promise<void> {
+  if (!ensureEditOrModal()) return;
+  const raw = (dispStore.data as { dispositifs?: unknown[]; meta?: unknown } | null) ?? {
+    dispositifs: [],
+  };
+  const list = Array.isArray(raw.dispositifs) ? [...raw.dispositifs] : [];
+  const newId = 'd' + Math.random().toString(36).slice(2, 8);
+  list.push({
+    id: newId,
+    name: payload.title,
+    description: payload.description,
+    audiences: [],
+  });
+  dispStore.setData({ ...raw, dispositifs: list });
+  await dispStore.save();
+  applyScreen({ kind: 'dispositif', ref: newId, title: payload.title });
+}
+
 // Recherche
 const search = ref('');
 const filteredStories = computed(() => {
@@ -344,6 +388,8 @@ const filteredStories = computed(() => {
       :dispositifs="dispositifs"
       :node-maquettes="paragraphsByNode"
       @update="applyScreen"
+      @promote-node="promoteToNode"
+      @promote-dispositif="promoteToDispositif"
       @close="pickerOpen = false"
     />
   </section>

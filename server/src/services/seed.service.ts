@@ -204,4 +204,11 @@ export async function seedDefaultProject(k: Kdb): Promise<void> {
     sysUser.id,
   );
   await insertProjectDataIfMissing(k, projectId, 'vocab', JSON.stringify(LEGACY_VOCAB), sysUser.id);
+  await insertProjectDataIfMissing(
+    k,
+    projectId,
+    'user_stories',
+    JSON.stringify({ stories: [] }),
+    sysUser.id,
+  );
 }

@@ -41,6 +41,10 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update', screen: Screen): void;
   (e: 'close'): void;
+  /** Promotion ghost → node : crée un node à la racine de l'arbo. */
+  (e: 'promote-node', payload: { title: string; description: string }): void;
+  /** Promotion ghost → dispositif : crée un dispositif dans le catalogue. */
+  (e: 'promote-dispositif', payload: { title: string; description: string }): void;
 }>();
 
 const activeKind = ref<ScreenKind>(props.current.kind);
@@ -146,6 +150,20 @@ function applyGhost(): void {
   emit('close');
 }
 
+function promoteToNode(): void {
+  const title = ghostTitle.value.trim();
+  if (!title) return;
+  emit('promote-node', { title, description: ghostDesc.value.trim() });
+  emit('close');
+}
+
+function promoteToDispositif(): void {
+  const title = ghostTitle.value.trim();
+  if (!title) return;
+  emit('promote-dispositif', { title, description: ghostDesc.value.trim() });
+  emit('close');
+}
+
 function getNodeLabel(id: string): string {
   return flatNodes.value.find((n) => n.id === id)?.label ?? id;
 }
@@ -201,8 +219,26 @@ function getNodeLabel(id: string): string {
           ></textarea>
         </label>
         <div class="screen-picker__actions">
+          <button
+            type="button"
+            class="fr-btn fr-btn--secondary fr-icon-file-add-line fr-btn--icon-left"
+            :disabled="!ghostTitle.trim()"
+            title="Crée un node à la racine de l'arborescence avec ce titre — vous pourrez le ranger ensuite."
+            @click="promoteToNode"
+          >
+            Créer comme page
+          </button>
+          <button
+            type="button"
+            class="fr-btn fr-btn--secondary fr-icon-external-link-line fr-btn--icon-left"
+            :disabled="!ghostTitle.trim()"
+            title="Crée une ressource externe dans le catalogue Ressources & services."
+            @click="promoteToDispositif"
+          >
+            Créer comme sortie externe
+          </button>
           <button type="button" class="fr-btn" :disabled="!ghostTitle.trim()" @click="applyGhost">
-            Enregistrer
+            Enregistrer en l'état
           </button>
         </div>
       </section>

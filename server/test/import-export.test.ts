@@ -187,6 +187,103 @@ describe('import-export bundle integrity', () => {
     expect(res.body.data.vocab).toHaveProperty('page_types');
   });
 
+  it('export inclut bien la clé `user_stories` (cf. ADR-018)', async () => {
+    const fx = await makeFixture();
+    const agent = await loginAs(fx, 'alice@test.fr', EDITOR);
+
+    const res = await agent.get('/api/projects/portail-electrification/export');
+    expect(res.body.data).toHaveProperty('user_stories');
+    expect(res.body.data.user_stories).toEqual({ stories: [] });
+  });
+
+  it('bundle sans `data.user_stories` → fallback `{ stories: [] }`', async () => {
+    const fx = await makeFixture();
+    const agent = await loginAs(fx, 'alice@test.fr', EDITOR);
+
+    const bundle = {
+      version: 1,
+      project: { slug: 'parcours-fallback', name: 'Parcours fallback', description: '' },
+      tree: { id: 'root', label: 'P', type: 'hub', children: [] },
+      roadmap: { meta: {}, items: [] },
+      data: {
+        // user_stories absent
+        dispositifs: { dispositifs: [] },
+        mesures: { mesures: [] },
+        objectifs: { axes: [] },
+        drupal_structure: {
+          content_types: [],
+          paragraphs: [],
+          paragraph_labels: {},
+          taxonomies: [],
+        },
+        vocab: { audiences: [], deadlines: [], page_types: [] },
+      },
+    };
+
+    const imported = await agent.post('/api/projects/import').send({ bundle });
+    expect(imported.status).toBe(201);
+
+    const stored = (await agent.get('/api/projects/parcours-fallback/data/user_stories')).body.data;
+    expect(stored).toEqual({ stories: [] });
+  });
+
+  it('round-trip user_stories : export → import → export préserve les stories', async () => {
+    const fx = await makeFixture();
+    const agent = await loginAs(fx, 'alice@test.fr', EDITOR);
+
+    // 1. on pose des stories sur le projet historique
+    const userStories = {
+      stories: [
+        {
+          id: 'us-1',
+          label: 'Comparer 2 aides',
+          audience_key: 'particuliers',
+          theme_key: 'information',
+          description: 'Cas test',
+          steps: [
+            {
+              id: 'st-1',
+              screen: { kind: 'node', ref: 'root', title: 'Accueil' },
+              action: 'Cliquer sur comparer',
+              comment: '',
+              branches: [
+                {
+                  id: 'br-1',
+                  condition: 'Si éligible',
+                  steps: [
+                    {
+                      id: 'st-2',
+                      screen: { kind: 'ghost', ref: null, title: 'Page suite' },
+                      action: 'Continuer',
+                      comment: '',
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    await agent
+      .put('/api/projects/portail-electrification/data/user_stories')
+      .send({ data: userStories });
+
+    // 2. on exporte + clone + ré-importe
+    const original = (await agent.get('/api/projects/portail-electrification/export')).body;
+    expect(original.data.user_stories).toEqual(userStories);
+
+    const cloned = structuredClone(original);
+    cloned.project.slug = 'parcours-clone';
+    cloned.project.name = 'Parcours clone';
+    const imp = await agent.post('/api/projects/import').send({ bundle: cloned });
+    expect(imp.status).toBe(201);
+
+    // 3. l'export du clone doit contenir les mêmes stories
+    const reExported = (await agent.get('/api/projects/parcours-clone/export')).body;
+    expect(reExported.data.user_stories).toEqual(userStories);
+  });
+
   it("migration dispositif.audience (string legacy) → audiences[] à l'import", async () => {
     // Bundles v1 et sorties Albert pluralisent spontanément le champ. Le
     // serveur doit normaliser les 3 formes en `audiences: [...]` (drop le

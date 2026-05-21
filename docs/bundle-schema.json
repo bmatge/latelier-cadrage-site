@@ -18,13 +18,14 @@
     "data": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Catalogues projet. Seules ces 5 clés sont persistées (cf. allow-list dans server/src/services/data.service.ts). Les clés inconnues sont silencieusement ignorées à l'import.",
+      "description": "Catalogues projet. Seules ces 6 clés sont persistées (cf. allow-list dans server/src/services/data.service.ts). Les clés inconnues sont silencieusement ignorées à l'import.",
       "properties": {
         "vocab":            { "$ref": "#/$defs/vocab" },
         "dispositifs":      { "$ref": "#/$defs/dispositifsCatalog" },
         "mesures":          { "$ref": "#/$defs/mesuresCatalog" },
         "objectifs":        { "$ref": "#/$defs/objectifsCatalog" },
-        "drupal_structure": { "$ref": "#/$defs/drupalStructure" }
+        "drupal_structure": { "$ref": "#/$defs/drupalStructure" },
+        "user_stories":     { "$ref": "#/$defs/userStoriesCatalog" }
       }
     }
   },
@@ -61,12 +62,13 @@
     },
     "vocab": {
       "type": "object",
-      "description": "Vocabulaires éditables par projet (cf. ADR-009). Sert de source unique pour les références audiences/deadlines/page_types posées sur les nœuds et les mesures.",
+      "description": "Vocabulaires éditables par projet (cf. ADR-009). Sert de source unique pour les références audiences/deadlines/page_types posées sur les nœuds et les mesures. `story_themes` (optionnel) est consommé par /parcours (cf. ADR-018).",
       "additionalProperties": false,
       "properties": {
-        "audiences":  { "type": "array", "items": { "$ref": "#/$defs/vocabEntry" } },
-        "deadlines":  { "type": "array", "items": { "$ref": "#/$defs/vocabEntry" } },
-        "page_types": { "type": "array", "items": { "$ref": "#/$defs/vocabEntry" } }
+        "audiences":    { "type": "array", "items": { "$ref": "#/$defs/vocabEntry" } },
+        "deadlines":    { "type": "array", "items": { "$ref": "#/$defs/vocabEntry" } },
+        "page_types":   { "type": "array", "items": { "$ref": "#/$defs/vocabEntry" } },
+        "story_themes": { "type": "array", "items": { "$ref": "#/$defs/vocabEntry" } }
       }
     },
 
@@ -434,6 +436,90 @@
             }
           }
         }
+      }
+    },
+
+    "userStoriesCatalog": {
+      "type": "object",
+      "description": "Parcours utilisateur : user stories (tâches usagers) avec leur suite d'écrans. Un écran peut être un node de l'arbo, un bloc d'une page, une ressource externe (dispositif) ou un placeholder à résoudre. Cf. ADR-018 et shared/src/user-stories.ts pour la sémantique.",
+      "additionalProperties": false,
+      "properties": {
+        "stories": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/userStory" }
+        }
+      }
+    },
+
+    "userStory": {
+      "type": "object",
+      "required": ["id", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "id":            { "type": "string", "minLength": 1 },
+        "label":         { "type": "string" },
+        "audience_key":  { "type": ["string", "null"], "description": "Clé de vocab.audiences." },
+        "theme_key":     { "type": ["string", "null"], "description": "Clé de vocab.story_themes." },
+        "description":   { "type": "string" },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/userStoryStep" }
+        }
+      }
+    },
+
+    "userStoryStep": {
+      "type": "object",
+      "required": ["id", "screen"],
+      "additionalProperties": false,
+      "properties": {
+        "id":      { "type": "string", "minLength": 1 },
+        "screen":  { "$ref": "#/$defs/userStoryScreen" },
+        "action":  { "type": "string" },
+        "comment": { "type": "string" },
+        "branches": {
+          "type": "array",
+          "description": "Embranchements conditionnels. Profondeur 1 verrouillée — les leaf steps des branches ne portent pas `branches`.",
+          "items": {
+            "type": "object",
+            "required": ["id", "condition", "steps"],
+            "additionalProperties": false,
+            "properties": {
+              "id":        { "type": "string", "minLength": 1 },
+              "condition": { "type": "string" },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "screen"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id":      { "type": "string", "minLength": 1 },
+                    "screen":  { "$ref": "#/$defs/userStoryScreen" },
+                    "action":  { "type": "string" },
+                    "comment": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "userStoryScreen": {
+      "type": "object",
+      "required": ["kind", "ref"],
+      "additionalProperties": false,
+      "description": "Référence polymorphe. `ref` est : un node.id pour kind='node', \"nodeId#paragraphId\" pour kind='block', un dispositif.id pour kind='dispositif', null pour kind='ghost'.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["ghost", "node", "block", "dispositif"]
+        },
+        "ref":         { "type": ["string", "null"] },
+        "title":       { "type": "string", "description": "Affichage rapide (mode ghost ou cache du label de l'entité référente)." },
+        "description": { "type": "string", "description": "Description libre (mode ghost — repris à la promotion)." }
       }
     }
   }

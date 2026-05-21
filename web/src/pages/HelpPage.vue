@@ -23,7 +23,7 @@ const sections: Section[] = [
       { id: 'concept', label: 'Le concept' },
       { id: 'onboarding', label: 'Premier accès' },
       { id: 'creer-projet', label: 'Créer un projet' },
-      { id: 'editer-projet', label: 'Les 8 onglets d’un projet' },
+      { id: 'editer-projet', label: 'Les 9 onglets d’un projet' },
       { id: 'collaborer', label: 'Collaborer à plusieurs' },
       { id: 'exporter', label: 'Exporter / réimporter' },
       { id: 'roles', label: 'Rôles et permissions' },
@@ -97,6 +97,16 @@ const sections: Section[] = [
       { id: 'politiques-kanban', label: 'Kanban axes × échéances' },
       { id: 'politiques-crud', label: 'Créer, éditer, supprimer' },
       { id: 'politiques-couverture', label: 'Couverture par les nœuds' },
+    ],
+  },
+  {
+    id: 'parcours',
+    label: '9. Parcours utilisateur',
+    children: [
+      { id: 'parcours-concept', label: 'Le concept : user stories' },
+      { id: 'parcours-screens', label: 'Les 4 types d’écran' },
+      { id: 'parcours-promotion', label: 'Créer depuis le picker' },
+      { id: 'parcours-branches', label: 'Embranchements conditionnels' },
     ],
   },
 ];
@@ -379,9 +389,9 @@ function onImgError(event: Event): void {
         </section>
 
         <section id="editer-projet">
-          <h3>Les 8 onglets d’un projet</h3>
+          <h3>Les 9 onglets d’un projet</h3>
           <p>
-            Une fois dans un projet, la barre de navigation expose 8 onglets. Chaque onglet a sa
+            Une fois dans un projet, la barre de navigation expose 9 onglets. Chaque onglet a sa
             rubrique de gestion détaillée plus bas dans ce guide :
           </p>
           <ul>
@@ -413,6 +423,10 @@ function onImgError(event: Event): void {
             <li>
               <strong>Politiques publiques</strong> — kanban des mesures du plan. Voir
               <a href="#politiques">rubrique 8</a>.
+            </li>
+            <li>
+              <strong>Parcours utilisateur</strong> — user stories et leur enchaînement d’écrans.
+              Voir <a href="#parcours">rubrique 9</a>.
             </li>
             <li>
               <strong>Historique</strong> — révisions du tree (chaque PUT crée une révision), avec
@@ -1486,6 +1500,118 @@ function onImgError(event: Event): void {
             <strong>Lien réciproque</strong> : depuis un nœud, le panneau détail (rubrique 3) liste
             les mesures rattachées avec un bouton « <code>↗ Voir dans politiques publiques</code> »
             pour sauter à l’édition de la mesure.
+          </p>
+        </section>
+      </section>
+
+      <!-- ============= 9. PARCOURS UTILISATEUR ============= -->
+      <section id="parcours" class="help-section-l1">
+        <h2>9. Parcours utilisateur</h2>
+
+        <section id="parcours-concept">
+          <h3>Le concept : user stories</h3>
+          <p>
+            Un <strong>parcours utilisateur</strong> formalise ce qu’un usager vient faire sur le
+            site et par quelles pages il passe pour y arriver. C’est la rencontre entre les
+            <em>tâches de l’usager</em> (« comparer deux aides », « savoir si je suis éligible », «
+            contacter un référent ») et l’<em>arborescence</em> du site.
+          </p>
+          <p>
+            Chaque entrée est une <strong>user story</strong> qui porte un libellé, un public-cible
+            (depuis <code>vocab.audiences</code>), un thème (depuis
+            <code>vocab.story_themes</code> : navigation / information / action / transaction par
+            défaut), une description courte, et surtout un
+            <strong>fil de fer d’étapes</strong> dépliable.
+          </p>
+          <p>
+            Différence avec <a href="#objectifs">la pyramide d’Objectifs</a> : la pyramide modélise
+            les objectifs <em>institutionnels</em> (axes / objectifs / moyens). Le parcours modélise
+            les objectifs <em>de l’usager</em>. Les deux coexistent et ne sont pas reliés
+            directement.
+          </p>
+        </section>
+
+        <section id="parcours-screens">
+          <h3>Les 4 types d’écran</h3>
+          <p>
+            Chaque étape pointe vers un <strong>écran</strong>, qui peut être de 4 natures
+            différentes — toutes interchangeables au gré de l’édition (cf. ADR-018 pour la
+            modélisation) :
+          </p>
+          <ul>
+            <li>
+              <strong>Page</strong> (<code>kind: 'node'</code>) — un node de l’arborescence du
+              projet. Bleu france, icône <code>fr-icon-file-line</code>.
+            </li>
+            <li>
+              <strong>Bloc</strong> (<code>kind: 'block'</code>) — un paragraph DSFR précis dans la
+              maquette d’un node (ref <code>nodeId#paragraphId</code>). Jaune, icône
+              <code>fr-icon-stack-line</code>. Utile quand le visiteur s’arrête sur une section
+              précise (formulaire, CTA, accordéon).
+            </li>
+            <li>
+              <strong>Sortie externe</strong> (<code>kind: 'dispositif'</code>) — une ressource ou
+              un service tiers (FranceConnect, démarches-simplifiées, mon-compte-formation…). Le
+              visiteur sort du site. Violet, icône <code>fr-icon-external-link-line</code>.
+            </li>
+            <li>
+              <strong>À définir</strong> (<code>kind: 'ghost'</code>) — placeholder à résoudre. En
+              atelier, typique pour capturer une intention sans encore savoir si ce sera une page,
+              un bloc ou une sortie. Gris pointillé, icône <code>fr-icon-question-line</code>.
+            </li>
+          </ul>
+          <p>
+            Les références cassées (un node supprimé entre-temps, un dispositif renommé) restent
+            visibles avec un sous-titre « lien rompu » — vous pouvez les ré-affecter via le picker.
+          </p>
+        </section>
+
+        <section id="parcours-promotion">
+          <h3>Créer depuis le picker (mode atelier)</h3>
+          <p>
+            Cliquer sur la pastille kind d’une carte d’étape ouvre le <strong>picker</strong> :
+            modale full-screen à 4 onglets (Indéfini / Page / Bloc / Sortie externe), un par kind,
+            avec recherche dans chaque.
+          </p>
+          <p>
+            Dans l’onglet <strong>Indéfini</strong>, vous saisissez un titre et une description
+            libre. Deux boutons de <em>promotion</em> apparaissent à côté de « Enregistrer en l’état
+            » :
+          </p>
+          <ul>
+            <li>
+              <strong>Créer comme page</strong> — ajoute un node à la racine de l’arborescence avec
+              ce titre comme libellé et la description comme TL;DR. Vous pourrez ensuite le ranger à
+              sa place via la rubrique <a href="#arborescence">Arborescence</a>.
+            </li>
+            <li>
+              <strong>Créer comme sortie externe</strong> — ajoute un dispositif au catalogue
+              <a href="#ressources">Ressources & services</a> avec ce titre et cette description.
+            </li>
+          </ul>
+          <p>
+            C’est un mode de travail inverse de l’habituel : on capture le parcours en atelier sans
+            avoir encore d’arbo posée, et l’arbo se construit naturellement par les promotions.
+          </p>
+        </section>
+
+        <section id="parcours-branches">
+          <h3>Embranchements conditionnels</h3>
+          <p>
+            Chaque carte d’étape porte un bouton <strong>« Branche »</strong>. Une branche déclare
+            une <em>condition</em> (« Si éligible », « Si non connecté »…) et une
+            <em>sous-suite d’étapes</em> qui en découle. Le rendu : sous le rail principal, un
+            sous-rail indenté avec barre verticale orangée.
+          </p>
+          <p>
+            <strong>Profondeur 1 maximum</strong>, verrouillé par le type côté code : les étapes
+            d’une branche ne peuvent pas elles-mêmes brancher. Si vous avez besoin de plus, c’est
+            que la story doit être découpée en deux. Pas de fusion explicite non plus — si une
+            branche doit « revenir au flux principal », notez-le dans le champ Commentaire.
+          </p>
+          <p>
+            Ce verrou est volontaire : il garde l’éditeur visuellement simple et empêche la dérive
+            vers un outil de workflow BPMN.
           </p>
         </section>
       </section>
