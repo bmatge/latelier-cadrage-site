@@ -6,7 +6,7 @@
 // description, steps. Le parent (ProjectParcoursPage) reconstitue la
 // data complète et la commit au store.
 
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import type { UserStory, Screen, Step, VocabEntry } from '@latelier/shared';
 import InlineEdit from '../ui/InlineEdit.vue';
 import StoryStepRail from './StoryStepRail.vue';
@@ -19,7 +19,6 @@ interface ResolvedScreen {
 const props = defineProps<{
   readonly story: UserStory;
   readonly canEdit: boolean;
-  readonly defaultOpen?: boolean;
   readonly audiences: readonly VocabEntry[];
   readonly themes: readonly VocabEntry[];
   readonly resolveScreen: (s: Screen) => ResolvedScreen;
@@ -42,8 +41,6 @@ const emit = defineEmits<{
   ): void;
 }>();
 
-const open = ref(props.defaultOpen ?? true);
-
 function onLabelUpdate(v: string): void {
   emit('update', { label: v });
 }
@@ -54,19 +51,12 @@ function onAudienceChange(e: Event): void {
   const v = (e.target as HTMLSelectElement).value;
   emit('update', { audience_key: v || null });
 }
-function onThemeChange(e: Event): void {
-  const v = (e.target as HTMLSelectElement).value;
-  emit('update', { theme_key: v || null });
-}
 function onStepsChange(next: Step[]): void {
   emit('update', { steps: next });
 }
 
 const audienceLabel = computed(
   () => props.audiences.find((a) => a.key === props.story.audience_key)?.label ?? '—',
-);
-const themeLabel = computed(
-  () => props.themes.find((t) => t.key === props.story.theme_key)?.label ?? '—',
 );
 
 const stepCount = computed(() => {
@@ -77,11 +67,25 @@ const stepCount = computed(() => {
   );
   return top + sub;
 });
+
+const open = computed(() => !props.story.collapsed);
+
+function onToggle(e: Event): void {
+  const next = (e.target as HTMLDetailsElement).open;
+  if (next === open.value) return;
+  emit('update', { collapsed: !next });
+}
 </script>
 
 <template>
   <article class="story-card">
     <header class="story-card__head">
+      <span
+        v-if="canEdit"
+        class="story-card__drag-handle fr-icon-drag-move-2-line"
+        aria-hidden="true"
+        title="Glisser pour déplacer la user story"
+      ></span>
       <div class="story-card__title">
         <InlineEdit
           :value="story.label"
@@ -104,18 +108,6 @@ const stepCount = computed(() => {
           >
             <option value="">—</option>
             <option v-for="a in audiences" :key="a.key" :value="a.key">{{ a.label }}</option>
-          </select>
-        </label>
-        <label class="story-card__field">
-          <span>Thème</span>
-          <select
-            class="fr-select fr-select--sm"
-            :value="story.theme_key ?? ''"
-            :disabled="!canEdit"
-            @change="onThemeChange"
-          >
-            <option value="">—</option>
-            <option v-for="t in themes" :key="t.key" :value="t.key">{{ t.label }}</option>
           </select>
         </label>
         <button
@@ -142,18 +134,13 @@ const stepCount = computed(() => {
       />
     </div>
 
-    <details
-      class="story-card__details"
-      :open="open"
-      @toggle="open = ($event.target as HTMLDetailsElement).open"
-    >
+    <details class="story-card__details" :open="open" @toggle="onToggle">
       <summary class="story-card__summary-row">
         <span class="fr-icon-road-map-line fr-icon--sm" aria-hidden="true"></span>
         Parcours
         <span class="story-card__counts">
           {{ stepCount }} étape{{ stepCount > 1 ? 's' : '' }}
           <template v-if="audienceLabel !== '—'">· {{ audienceLabel }}</template>
-          <template v-if="themeLabel !== '—'">· {{ themeLabel }}</template>
         </span>
       </summary>
       <div class="story-card__rail">
@@ -161,6 +148,7 @@ const stepCount = computed(() => {
           :story-id="story.id"
           :steps="story.steps"
           :can-edit="canEdit"
+          :themes="themes"
           :resolve-screen="resolveScreen"
           @change="onStepsChange"
           @pick-screen="
@@ -191,6 +179,18 @@ const stepCount = computed(() => {
   gap: 1rem;
   align-items: flex-start;
   flex-wrap: wrap;
+}
+.story-card__drag-handle {
+  color: #999;
+  cursor: grab;
+  font-size: 1.1rem;
+  padding: 0.25rem 0.4rem 0.25rem 0;
+  align-self: center;
+  flex-shrink: 0;
+}
+.story-card__drag-handle:active {
+  cursor: grabbing;
+  color: var(--text-action-high-blue-france, #000091);
 }
 .story-card__title {
   flex: 1;

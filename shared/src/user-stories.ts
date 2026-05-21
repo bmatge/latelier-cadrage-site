@@ -25,6 +25,12 @@ export interface Screen {
   readonly title?: string;
   /** Description temporaire (mode ghost), reprise à la promotion. */
   readonly description?: string;
+  /**
+   * Thème de l'écran (clé de `vocab.story_themes` :
+   * navigation / information / action / transaction…). Caractérise la
+   * nature de l'écran lui-même, pas de la story qui le traverse.
+   */
+  readonly theme_key?: string | null;
 }
 
 /** Step sans branches — utilisé à l'intérieur d'une branche (profondeur 1). */
@@ -50,9 +56,13 @@ export interface UserStory {
   readonly label: string;
   /** Clé de `vocab.audiences` du projet. */
   readonly audience_key?: string | null;
-  /** Clé de `vocab.story_themes` du projet (navigation/information/action…). */
-  readonly theme_key?: string | null;
   readonly description?: string;
+  /**
+   * État replié/déplié de l'accordéon « Parcours » — persisté pour
+   * permettre à un utilisateur de figer une story plié dans son tour
+   * d'horizon.
+   */
+  readonly collapsed?: boolean;
   readonly steps: readonly Step[];
 }
 
@@ -99,43 +109,49 @@ function normalizeStory(input: unknown): UserStory | null {
   if (!id) return null;
   const label = typeof raw['label'] === 'string' ? raw['label'] : '';
   const audience_key = typeof raw['audience_key'] === 'string' ? raw['audience_key'] : null;
-  const theme_key = typeof raw['theme_key'] === 'string' ? raw['theme_key'] : null;
   const description = typeof raw['description'] === 'string' ? raw['description'] : '';
+  const collapsed = raw['collapsed'] === true;
   const stepsRaw = Array.isArray(raw['steps']) ? raw['steps'] : [];
   const steps: Step[] = [];
+  // Compatibilité descendante : un legacy `theme_key` au niveau story
+  // (ancien modèle) est propagé à tous les screens sans theme_key.
+  // Permet aux user stories créées avant cette refonte de ne pas perdre
+  // leur thème ; nouveaux screens explicites prennent toujours priorité.
+  const legacyStoryTheme =
+    typeof raw['theme_key'] === 'string' && raw['theme_key'] ? (raw['theme_key'] as string) : null;
   for (const s of stepsRaw) {
-    const norm = normalizeStep(s);
+    const norm = normalizeStep(s, legacyStoryTheme);
     if (norm) steps.push(norm);
   }
-  return { id, label, audience_key, theme_key, description, steps };
+  return { id, label, audience_key, description, collapsed, steps };
 }
 
-function normalizeStep(input: unknown): Step | null {
-  const leaf = normalizeLeafStep(input);
+function normalizeStep(input: unknown, fallbackTheme: string | null = null): Step | null {
+  const leaf = normalizeLeafStep(input, fallbackTheme);
   if (!leaf) return null;
   const raw = input as Record<string, unknown>;
   const branchesRaw = Array.isArray(raw['branches']) ? raw['branches'] : [];
   const branches: Branch[] = [];
   for (const b of branchesRaw) {
-    const norm = normalizeBranch(b);
+    const norm = normalizeBranch(b, fallbackTheme);
     if (norm) branches.push(norm);
   }
   return branches.length ? { ...leaf, branches } : leaf;
 }
 
-function normalizeLeafStep(input: unknown): LeafStep | null {
+function normalizeLeafStep(input: unknown, fallbackTheme: string | null = null): LeafStep | null {
   if (!input || typeof input !== 'object') return null;
   const raw = input as Record<string, unknown>;
   const id = typeof raw['id'] === 'string' && raw['id'] ? raw['id'] : null;
   if (!id) return null;
-  const screen = normalizeScreen(raw['screen']);
+  const screen = normalizeScreen(raw['screen'], fallbackTheme);
   if (!screen) return null;
   const action = typeof raw['action'] === 'string' ? raw['action'] : '';
   const comment = typeof raw['comment'] === 'string' ? raw['comment'] : '';
   return { id, screen, action, comment };
 }
 
-function normalizeBranch(input: unknown): Branch | null {
+function normalizeBranch(input: unknown, fallbackTheme: string | null = null): Branch | null {
   if (!input || typeof input !== 'object') return null;
   const raw = input as Record<string, unknown>;
   const id = typeof raw['id'] === 'string' && raw['id'] ? raw['id'] : null;
@@ -144,13 +160,13 @@ function normalizeBranch(input: unknown): Branch | null {
   const stepsRaw = Array.isArray(raw['steps']) ? raw['steps'] : [];
   const steps: LeafStep[] = [];
   for (const s of stepsRaw) {
-    const norm = normalizeLeafStep(s);
+    const norm = normalizeLeafStep(s, fallbackTheme);
     if (norm) steps.push(norm);
   }
   return { id, condition, steps };
 }
 
-function normalizeScreen(input: unknown): Screen | null {
+function normalizeScreen(input: unknown, fallbackTheme: string | null = null): Screen | null {
   if (!input || typeof input !== 'object') return null;
   const raw = input as Record<string, unknown>;
   const kind = raw['kind'];
@@ -160,8 +176,12 @@ function normalizeScreen(input: unknown): Screen | null {
   const ref = typeof raw['ref'] === 'string' ? raw['ref'] : null;
   const title = typeof raw['title'] === 'string' ? raw['title'] : undefined;
   const description = typeof raw['description'] === 'string' ? raw['description'] : undefined;
+  const explicitTheme =
+    typeof raw['theme_key'] === 'string' && raw['theme_key'] ? (raw['theme_key'] as string) : null;
+  const theme_key = explicitTheme ?? fallbackTheme;
   const out: Screen = { kind, ref };
   if (title !== undefined) (out as { title?: string }).title = title;
   if (description !== undefined) (out as { description?: string }).description = description;
+  if (theme_key) (out as { theme_key?: string | null }).theme_key = theme_key;
   return out;
 }

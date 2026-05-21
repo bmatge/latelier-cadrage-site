@@ -459,8 +459,9 @@
         "id":            { "type": "string", "minLength": 1 },
         "label":         { "type": "string" },
         "audience_key":  { "type": ["string", "null"], "description": "Clé de vocab.audiences." },
-        "theme_key":     { "type": ["string", "null"], "description": "Clé de vocab.story_themes." },
         "description":   { "type": "string" },
+        "collapsed":     { "type": "boolean", "description": "État replié/déplié persisté de l'accordéon Parcours." },
+        "theme_key":     { "type": ["string", "null"], "description": "DEPRECATED : ancien emplacement du thème (migré au niveau screen au normalize). Toléré en entrée pour les bundles antérieurs." },
         "steps": {
           "type": "array",
           "items": { "$ref": "#/$defs/userStoryStep" }
@@ -519,7 +520,8 @@
         },
         "ref":         { "type": ["string", "null"] },
         "title":       { "type": "string", "description": "Affichage rapide (mode ghost ou cache du label de l'entité référente)." },
-        "description": { "type": "string", "description": "Description libre (mode ghost — repris à la promotion)." }
+        "description": { "type": "string", "description": "Description libre (mode ghost — repris à la promotion)." },
+        "theme_key":   { "type": ["string", "null"], "description": "Thème de l'écran : clé de vocab.story_themes. Caractérise la nature de l'écran (navigation/information/action/transaction…), pas de la user story qui le traverse." }
       }
     }
   }

@@ -149,12 +149,74 @@ describe('normalizeUserStories', () => {
     expect(innerStep.branches).toBeUndefined();
   });
 
-  it('accepte audience_key et theme_key', () => {
+  it('accepte audience_key sur la story', () => {
     const out = normalizeUserStories({
-      stories: [{ id: 's1', label: 'T', audience_key: 'particuliers', theme_key: 'navigation' }],
+      stories: [{ id: 's1', label: 'T', audience_key: 'particuliers' }],
     });
     expect(out.stories[0]!.audience_key).toBe('particuliers');
-    expect(out.stories[0]!.theme_key).toBe('navigation');
+  });
+
+  it('accepte theme_key sur le screen', () => {
+    const out = normalizeUserStories({
+      stories: [
+        {
+          id: 's1',
+          label: 'T',
+          steps: [
+            {
+              id: 'st1',
+              screen: { kind: 'node', ref: 'n1', theme_key: 'navigation' },
+              action: '',
+              comment: '',
+            },
+          ],
+        },
+      ],
+    });
+    expect(out.stories[0]!.steps[0]!.screen.theme_key).toBe('navigation');
+  });
+
+  it('migre legacy story.theme_key vers les screens sans theme explicite', () => {
+    const out = normalizeUserStories({
+      stories: [
+        {
+          id: 's1',
+          label: 'T',
+          theme_key: 'information', // legacy : sur la story
+          steps: [
+            {
+              id: 'st1',
+              screen: { kind: 'node', ref: 'n1' }, // hérite
+              action: '',
+              comment: '',
+            },
+            {
+              id: 'st2',
+              screen: { kind: 'node', ref: 'n2', theme_key: 'action' }, // explicite → préservé
+              action: '',
+              comment: '',
+            },
+          ],
+        },
+      ],
+    });
+    expect(out.stories[0]!.steps[0]!.screen.theme_key).toBe('information');
+    expect(out.stories[0]!.steps[1]!.screen.theme_key).toBe('action');
+    // La story elle-même ne porte plus theme_key dans le nouveau modèle
+    expect((out.stories[0] as { theme_key?: string }).theme_key).toBeUndefined();
+  });
+
+  it('persiste le flag collapsed sur la story', () => {
+    const out = normalizeUserStories({
+      stories: [
+        { id: 's1', label: 'T', collapsed: true },
+        { id: 's2', label: 'U', collapsed: false },
+        { id: 's3', label: 'V' },
+      ],
+    });
+    expect(out.stories[0]!.collapsed).toBe(true);
+    expect(out.stories[1]!.collapsed).toBe(false);
+    expect(out.stories[2]!.collapsed).toBe(false);
   });
 
   it('roundtrip : normaliser deux fois est idempotent', () => {
@@ -164,12 +226,17 @@ describe('normalizeUserStories', () => {
           id: 's1',
           label: 'Test',
           audience_key: 'pros',
-          theme_key: 'action',
           description: 'desc',
+          collapsed: true,
           steps: [
             {
               id: 'st1',
-              screen: { kind: 'block', ref: 'n1#p1', title: 'Bloc CTA' },
+              screen: {
+                kind: 'block',
+                ref: 'n1#p1',
+                title: 'Bloc CTA',
+                theme_key: 'action',
+              },
               action: 'cliquer',
               comment: 'attention au libellé',
             },

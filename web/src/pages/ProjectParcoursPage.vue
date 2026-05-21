@@ -194,7 +194,6 @@ function addStory(): void {
     id: newId('us'),
     label: 'Nouvelle user story',
     audience_key: null,
-    theme_key: null,
     description: '',
     steps: [],
   });
@@ -306,6 +305,70 @@ async function promoteToNode(payload: { title: string; description: string }): P
   applyScreen({ kind: 'node', ref: newId, title: payload.title });
 }
 
+// ----- Drag-and-drop des user stories (réordonnancement vertical) -----
+//
+// MIME distinct des step-cards (`application/x-parcours-step`) pour
+// éviter les collisions. Le drag s'amorce uniquement si la cible
+// mousedown est le handle `.story-card__drag-handle` — sinon on
+// ne déclenche pas le drag (laisse les inputs/boutons interactifs).
+
+const STORY_DRAG_MIME = 'application/x-parcours-story';
+
+function onStoryDragStart(e: DragEvent, storyId: string): void {
+  if (!canEdit.value || !e.dataTransfer) {
+    e.preventDefault();
+    return;
+  }
+  const target = e.target as HTMLElement;
+  if (!target.closest('.story-card__drag-handle')) {
+    e.preventDefault();
+    return;
+  }
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData(STORY_DRAG_MIME, storyId);
+  e.dataTransfer.setData('text/plain', storyId);
+}
+
+function isStoryDrag(e: DragEvent): boolean {
+  return Array.from(e.dataTransfer?.types ?? []).includes(STORY_DRAG_MIME);
+}
+
+function onStoryDragOver(e: DragEvent): void {
+  if (!canEdit.value || !isStoryDrag(e)) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  const el = e.currentTarget as HTMLElement;
+  const rect = el.getBoundingClientRect();
+  const offset = e.clientY - rect.top;
+  el.classList.remove('drag-over-before', 'drag-over-after');
+  el.classList.add(offset < rect.height * 0.5 ? 'drag-over-before' : 'drag-over-after');
+}
+
+function onStoryDragLeave(e: DragEvent): void {
+  (e.currentTarget as HTMLElement).classList.remove('drag-over-before', 'drag-over-after');
+}
+
+function onStoryDrop(e: DragEvent, targetStoryId: string): void {
+  if (!canEdit.value) return;
+  e.preventDefault();
+  const el = e.currentTarget as HTMLElement;
+  const mode: 'before' | 'after' = el.classList.contains('drag-over-before') ? 'before' : 'after';
+  el.classList.remove('drag-over-before', 'drag-over-after');
+
+  const sourceId = e.dataTransfer?.getData(STORY_DRAG_MIME);
+  if (!sourceId || sourceId === targetStoryId) return;
+
+  const next = cloneStories();
+  const sIdx = next.findIndex((s) => s.id === sourceId);
+  if (sIdx < 0) return;
+  const [moved] = next.splice(sIdx, 1);
+  if (!moved) return;
+  const tIdx = next.findIndex((s) => s.id === targetStoryId);
+  if (tIdx < 0) next.push(moved);
+  else next.splice(mode === 'before' ? tIdx : tIdx + 1, 0, moved);
+  void commit({ stories: next });
+}
+
 /**
  * Drag cross-parcours : on retire le step de la story source et on
  * l'insère dans la story cible avant/après le step cible. Limité au
@@ -415,22 +478,31 @@ const filteredStories = computed(() => {
       </p>
     </div>
     <div v-else class="stories-list">
-      <UserStoryCard
+      <div
         v-for="story in filteredStories"
         :key="story.id"
-        :story="story"
-        :can-edit="canEdit"
-        :audiences="audiences"
-        :themes="themes"
-        :resolve-screen="resolveScreen"
-        @update="(patch) => updateStory(story.id, patch)"
-        @remove="removeStory(story.id)"
-        @pick-screen="
-          (stepId, branchId, subStepId) => openPicker(story.id, stepId, branchId, subStepId)
-        "
-        @cross-move="(payload) => onCrossMove({ ...payload, targetStoryId: story.id })"
-        @edit-attempt="ensureEditOrModal"
-      />
+        class="story-drop-wrap"
+        :draggable="canEdit"
+        @dragstart="onStoryDragStart($event, story.id)"
+        @dragover="onStoryDragOver"
+        @dragleave="onStoryDragLeave"
+        @drop="onStoryDrop($event, story.id)"
+      >
+        <UserStoryCard
+          :story="story"
+          :can-edit="canEdit"
+          :audiences="audiences"
+          :themes="themes"
+          :resolve-screen="resolveScreen"
+          @update="(patch) => updateStory(story.id, patch)"
+          @remove="removeStory(story.id)"
+          @pick-screen="
+            (stepId, branchId, subStepId) => openPicker(story.id, stepId, branchId, subStepId)
+          "
+          @cross-move="(payload) => onCrossMove({ ...payload, targetStoryId: story.id })"
+          @edit-attempt="ensureEditOrModal"
+        />
+      </div>
     </div>
 
     <ScreenPicker
@@ -473,5 +545,31 @@ const filteredStories = computed(() => {
   flex-direction: column;
   gap: 1rem;
   margin-top: 1rem;
+}
+.story-drop-wrap {
+  position: relative;
+}
+.story-drop-wrap[draggable='true'] {
+  cursor: default;
+}
+/* Indicateur de drop horizontal : trait bleu au-dessus ou en dessous
+   de la story cible. */
+.story-drop-wrap.drag-over-before::before,
+.story-drop-wrap.drag-over-after::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--text-action-high-blue-france, #000091);
+  border-radius: 2px;
+  z-index: 5;
+  pointer-events: none;
+}
+.story-drop-wrap.drag-over-before::before {
+  top: -8px;
+}
+.story-drop-wrap.drag-over-after::after {
+  bottom: -8px;
 }
 </style>

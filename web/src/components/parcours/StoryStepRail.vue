@@ -6,7 +6,7 @@
 // (`UserStoryCard`) reconstitue la story et la commit au store
 // (autosave).
 
-import type { Screen, Step } from '@latelier/shared';
+import type { Screen, Step, VocabEntry } from '@latelier/shared';
 import StoryStepCard from './StoryStepCard.vue';
 import { newId } from './screen-kinds.js';
 import InlineEdit from '../ui/InlineEdit.vue';
@@ -39,6 +39,8 @@ const props = defineProps<{
   readonly resolveScreen: ScreenResolver;
   /** ID de la user story qui contient ce rail — sert au drag cross-parcours. */
   readonly storyId: string;
+  /** Thèmes disponibles pour le picker (vocab.story_themes du projet). */
+  readonly themes: readonly VocabEntry[];
 }>();
 
 const emit = defineEmits<{
@@ -243,6 +245,13 @@ function setStepField(id: string, field: 'action' | 'comment', v: string): void 
   emitChange(next);
 }
 
+function setStepTheme(id: string, themeKey: string | null): void {
+  const next = cloneSteps();
+  const s = next.find((x) => x.id === id);
+  if (s) s.screen = { ...s.screen, theme_key: themeKey };
+  emitChange(next);
+}
+
 function addBranch(stepId: string): void {
   const next = cloneSteps();
   const s = next.find((x) => x.id === stepId);
@@ -306,6 +315,19 @@ function setSubStepField(
   }
   emitChange(next);
 }
+
+function setSubStepTheme(
+  stepId: string,
+  branchId: string,
+  subId: string,
+  themeKey: string | null,
+): void {
+  const next = cloneSteps();
+  const b = next.find((x) => x.id === stepId)?.branches?.find((x) => x.id === branchId);
+  const sub = b?.steps.find((s) => s.id === subId);
+  if (sub) sub.screen = { ...sub.screen, theme_key: themeKey };
+  emitChange(next);
+}
 </script>
 
 <template>
@@ -348,10 +370,12 @@ function setSubStepField(
             <StoryStepCard
               :step="step"
               :can-edit="canEdit"
+              :themes="themes"
               :screen-label="resolveScreen(step.screen).label"
               :screen-subtitle="resolveScreen(step.screen).subtitle"
               @update:action="(v) => setStepField(step.id, 'action', v)"
               @update:comment="(v) => setStepField(step.id, 'comment', v)"
+              @update:theme="(v) => setStepTheme(step.id, v)"
               @change-screen="emit('pick-screen', step.id, null, null)"
               @add-branch="addBranch(step.id)"
               @remove="removeStep(step.id)"
@@ -394,6 +418,7 @@ function setSubStepField(
                     <StoryStepCard
                       :step="sub"
                       :can-edit="canEdit"
+                      :themes="themes"
                       :screen-label="resolveScreen(sub.screen).label"
                       :screen-subtitle="resolveScreen(sub.screen).subtitle"
                       :no-branches="true"
@@ -403,6 +428,7 @@ function setSubStepField(
                       @update:comment="
                         (v) => setSubStepField(step.id, branch.id, sub.id, 'comment', v)
                       "
+                      @update:theme="(v) => setSubStepTheme(step.id, branch.id, sub.id, v)"
                       @change-screen="emit('pick-screen', step.id, branch.id, sub.id)"
                       @remove="removeSubStep(step.id, branch.id, sub.id)"
                       @edit-attempt="emit('edit-attempt')"
