@@ -354,6 +354,74 @@ function applyScreen(screen: Screen): void {
   void commit({ parcours: next });
 }
 
+// ----- Import / export dédié des parcours -----
+//
+// Permet de partager / sauvegarder juste les parcours (sans embarquer
+// tree/roadmap/dispositifs). Format autonome : un objet identique au
+// bloc `data.user_stories` du bundle complet, soit `{ parcours: [...] }`.
+// Tolère l'entrée legacy `{ stories: [...] }` via le normalize partagé.
+
+function exportParcours(): void {
+  const payload = normalizeUserStories(data.value);
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const stamp = new Date().toISOString().slice(0, 10);
+  a.download = `parcours-${slug.value}-${stamp}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const fileInput = ref<HTMLInputElement | null>(null);
+
+function triggerImport(): void {
+  if (!ensureEditOrModal()) return;
+  fileInput.value?.click();
+}
+
+async function onImportFile(e: Event): Promise<void> {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = ''; // reset pour permettre de réimporter le même fichier
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text) as unknown;
+    const normalized = normalizeUserStories(parsed);
+    if (!normalized.parcours.length) {
+      alert('Le fichier ne contient aucun parcours valide.');
+      return;
+    }
+    const mode = data.value.parcours.length
+      ? await confirmStore.ask({
+          title: 'Importer les parcours',
+          message: `${normalized.parcours.length} parcours dans le fichier. Remplacer ou fusionner avec les ${data.value.parcours.length} parcours existants ?`,
+          confirmLabel: 'Fusionner',
+          cancelLabel: 'Remplacer',
+        })
+      : true;
+    // confirmStore.ask : true = Fusionner, false = Remplacer
+    if (mode) {
+      // Fusion : append + renumérotation des ids en collision
+      const existingIds = new Set(data.value.parcours.map((p) => p.id));
+      const merged = [
+        ...data.value.parcours,
+        ...normalized.parcours.map((p) =>
+          existingIds.has(p.id)
+            ? { ...p, id: `${p.id}-${Math.random().toString(36).slice(2, 6)}` }
+            : p,
+        ),
+      ];
+      void commit({ parcours: merged });
+    } else {
+      void commit({ parcours: [...normalized.parcours] });
+    }
+  } catch (err) {
+    alert(`Fichier invalide : ${(err as Error).message}`);
+  }
+}
+
 // ----- Promotion ghost → entité (Phase C) -----
 
 async function promoteToNode(payload: { title: string; description: string }): Promise<void> {
@@ -695,6 +763,30 @@ const filteredParcours = computed<readonly Parcours[]>(() => {
           >
             Nouveau parcours
           </button>
+          <button
+            type="button"
+            class="fr-btn fr-btn--secondary fr-btn--sm fr-icon-download-line fr-btn--icon-left"
+            title="Exporter tous les parcours en JSON"
+            @click="exportParcours"
+          >
+            Exporter
+          </button>
+          <button
+            type="button"
+            class="fr-btn fr-btn--secondary fr-btn--sm fr-icon-upload-line fr-btn--icon-left"
+            :disabled="!canEdit"
+            title="Importer des parcours depuis un fichier JSON"
+            @click="canEdit ? triggerImport() : ensureEditOrModal()"
+          >
+            Importer
+          </button>
+          <input
+            ref="fileInput"
+            type="file"
+            accept="application/json,.json"
+            class="parcours-toolbar__hidden-file"
+            @change="onImportFile"
+          />
         </div>
       </template>
     </PageHeader>
@@ -833,9 +925,13 @@ const filteredParcours = computed<readonly Parcours[]>(() => {
   gap: 0.6rem;
   align-items: center;
   margin-top: 0.5rem;
+  flex-wrap: wrap;
 }
 .parcours-toolbar .fr-input {
   max-width: 320px;
+}
+.parcours-toolbar__hidden-file {
+  display: none;
 }
 .loading,
 .empty {

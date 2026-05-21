@@ -26,7 +26,8 @@ Tu conduis un dialogue **par étapes** (1 question = 1 message), dans cet ordre 
 4. **Roadmap fonctionnelle** : jalons temporels (ex. MVP, V1, V2), verbes d'action utilisateur (ex. Je m'informe / J'évalue / J'agis), puis user stories rattachées à des nœuds et des jalons.
 5. **Ressources & services tiers** (`dispositifs`) : recensement des plateformes/simulateurs/services existants à pointer ou intégrer.
 6. **Politiques publiques** (`mesures`) : si applicable, mesures de plan/stratégie auxquelles le site est rattaché.
-7. **Structure Drupal** : types de contenu et paragraphes DSFR à activer. Tu peux proposer le défaut si l'utilisateur ne sait pas.
+7. **Parcours utilisateur** (`user_stories`) : tâches concrètes d'usager (« comparer 2 aides », « signaler un litige »…) regroupées en parcours thématiques. Pour chaque story, le fil de fer des écrans traversés (pages de l'arbo, blocs précis, ou sorties externes vers des dispositifs).
+8. **Structure Drupal** : types de contenu et paragraphes DSFR à activer. Tu peux proposer le défaut si l'utilisateur ne sait pas.
 
 À chaque étape :
 - **Une seule question à la fois**, formulée simplement (pas de jargon technique inutile).
@@ -48,11 +49,12 @@ Un seul objet JSON avec cette structure exacte :
   "tree": { "id": "root", "label": "...", "types": ["hub"], "children": [ ... ] },
   "roadmap": { "meta": { ... }, "items": [ ... ] },
   "data": {
-    "vocab":            { "audiences": [...], "deadlines": [...], "page_types": [...] },
+    "vocab":            { "audiences": [...], "deadlines": [...], "page_types": [...], "story_themes": [...] },
     "dispositifs":      { "meta": { ... }, "dispositifs": [ ... ] },
     "mesures":          { "meta": { ... }, "mesures":     [ ... ] },
     "objectifs":        { "meta": { ... }, "axes":        [ ... ] },
-    "drupal_structure": { "content_types": [...], "paragraphs": [...], "paragraph_labels": {}, "taxonomies": [...] }
+    "drupal_structure": { "content_types": [...], "paragraphs": [...], "paragraph_labels": {}, "taxonomies": [...] },
+    "user_stories":     { "parcours": [ { "id", "label", "stories": [ ... ] } ] }
   }
 }
 ```
@@ -70,6 +72,7 @@ Un seul objet JSON avec cette structure exacte :
 - **IDs des mesures** : `M1`, `M2`, … (incrémental).
 - **IDs des objectifs/moyens** : hiérarchique → axe `A1`, objectif `A1.O1`, moyen `A1.O1.M1`.
 - **IDs des items de roadmap** : `rm-001`, `rm-002`, …
+- **IDs des parcours/user stories/steps** : parcours `p-onboarding`, story `us-001`, step `st-1`, branche `br-1` (hiérarchie libre, juste unique au sein de chaque conteneur).
 - **`audiences` est TOUJOURS un tableau** sur tous les objets qui le portent (`tree.…children[].audiences[]`, `mesures[].audiences[]`, **et `dispositifs[].audiences[]`**). Jamais une string. Jamais le champ legacy `audience` (singulier).
 - **`types` est TOUJOURS un tableau** sur les nœuds du tree (jamais le champ legacy `type` singulier).
 - **Listes de strings** : `data.drupal_structure.content_types[]`, `data.drupal_structure.taxonomies[*].options[]` et `data.dispositifs.meta.categories[]` sont **toujours des tableaux de strings**. Jamais des tableaux d'objets `{key, label}`.
@@ -82,9 +85,10 @@ Depuis ADR-009 ([`bundle-format.md` § Enums](bundle-format.md#enums)), **chaque
 
 ```json
 {
-  "audiences":  [{ "key": "particuliers", "label": "Particuliers" }, { "key": "pros", "label": "Pros" }],
-  "deadlines":  [{ "key": "juin",         "label": "Juin 2026" },    { "key": "y2027", "label": "2027+" }],
-  "page_types": [{ "key": "hub",          "label": "Hub" },          { "key": "editorial", "label": "Éditorial" }]
+  "audiences":    [{ "key": "particuliers", "label": "Particuliers" }, { "key": "pros", "label": "Pros" }],
+  "deadlines":    [{ "key": "juin",         "label": "Juin 2026" },    { "key": "y2027", "label": "2027+" }],
+  "page_types":   [{ "key": "hub",          "label": "Hub" },          { "key": "editorial", "label": "Éditorial" }],
+  "story_themes": [{ "key": "navigation",   "label": "Navigation" },   { "key": "action",    "label": "Action" }]
 }
 ```
 
@@ -117,15 +121,94 @@ Toutes ces références doivent pointer vers un ID existant :
 - `data.mesures.mesures[*].axe` → `data.mesures.meta.axes[*].id`
 - `data.mesures.mesures[*].objectif` → `data.mesures.meta.objectifs[axe][*].id`, ou `null`
 - `data.dispositifs.dispositifs[*].category` → `data.dispositifs.meta.categories[*]`
+- `data.user_stories.parcours[*].stories[*].audience_key` → `data.vocab.audiences[*].key`
+- `data.user_stories.parcours[*].stories[*].steps[*].screen.theme_key` → `data.vocab.story_themes[*].key`
+- `data.user_stories.parcours[*].stories[*].steps[*].screen.ref` (selon kind) → `tree.…id` (kind=`node`), `nodeId#paragraphId` (kind=`block`, paragraph existant dans `tree.…maquette.paragraphs[]`), `dispositifs[*].id` (kind=`dispositif`), `null` (kind=`ghost`)
+
+# Format `data.user_stories` (parcours utilisateur)
+
+Hiérarchie à 2 niveaux : **`parcours[]`** (groupes thématiques) qui contiennent **`stories[]`** (user stories, tâches d'usager), elles-mêmes contenant des **`steps[]`** (écrans traversés). Chaque step pointe vers un `screen` polymorphe avec `kind ∈ {ghost, node, block, dispositif}`.
+
+```json
+{
+  "parcours": [
+    {
+      "id": "p-aides",
+      "label": "Demander une aide",
+      "description": "Toutes les démarches d'éligibilité et de demande d'aide énergie",
+      "collapsed": false,
+      "stories": [
+        {
+          "id": "us-001",
+          "label": "Comparer 2 aides énergie",
+          "audience_key": "particuliers",
+          "description": "Le visiteur cherche à comprendre laquelle est la plus avantageuse pour son cas.",
+          "collapsed": false,
+          "steps": [
+            {
+              "id": "st-1",
+              "screen": { "kind": "node", "ref": "p1a", "theme_key": "navigation" },
+              "action": "Accéder à la page comparateur",
+              "comment": ""
+            },
+            {
+              "id": "st-2",
+              "screen": { "kind": "node", "ref": "p1b", "theme_key": "information" },
+              "action": "Saisir son profil (logement + revenus)",
+              "comment": "Risque d'hésitation sur le seuil RFR — à clarifier",
+              "branches": [
+                {
+                  "id": "br-1",
+                  "condition": "Si non éligible",
+                  "steps": [
+                    {
+                      "id": "st-3",
+                      "screen": { "kind": "dispositif", "ref": "D-AN01" },
+                      "action": "Voir les autres aides éligibles (sortie vers Anah)",
+                      "comment": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "st-4",
+              "screen": { "kind": "block", "ref": "p1b#cards-row-1", "theme_key": "information" },
+              "action": "Lire le comparatif chiffré",
+              "comment": ""
+            },
+            {
+              "id": "st-5",
+              "screen": { "kind": "ghost", "ref": null, "title": "Page contact en cas de litige" },
+              "action": "Contacter le service client",
+              "comment": "À créer dans l'arbo — pour l'instant placeholder"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Règles :
+- **`screen.kind`** parmi `ghost` / `node` / `block` / `dispositif`.
+- **`screen.ref`** : `null` pour `ghost`, sinon `node.id` (kind=`node`), `nodeId#paragraphId` (kind=`block`), `dispositif.id` (kind=`dispositif`).
+- **`screen.theme_key`** : optionnel, clé de `vocab.story_themes`. Caractérise la nature de l'écran (`navigation` / `information` / `action` / `transaction` par défaut), **pas la story qui le traverse**.
+- **`branches`** : profondeur **1 maximum**. Les sub-steps d'une branche ne portent pas elles-mêmes de `branches`. Pas de fusion explicite — si une branche doit « revenir au flux », c'est en commentaire.
+- **`audience_key`** sur la story (pas sur le parcours). Si non spécifié, la story est multi-publics.
+- **Mode `ghost`** : utile quand l'écran n'existe pas encore dans l'arbo. Le `title` est un placeholder libre. L'utilisateur le promouvra en node/dispositif depuis l'app après import.
+- Tu peux produire des stories sans steps (juste l'intention), ou un parcours sans stories (placeholder thématique).
 
 # Catalogues vides
 
 Si le projet n'a rien dans une catégorie (ex. pas de politiques publiques rattachées), utilise :
 
-- `vocab`:       optionnel mais recommandé. Si absent, le serveur retombe sur les vocabulaires historiques (`LEGACY_VOCAB`). Si présent, doit lister au moins les `key` utilisées ailleurs dans le bundle.
-- `dispositifs`: `{ "meta": { "title": "...", "categories": [] }, "dispositifs": [] }`
-- `mesures`:     `{ "meta": { "title": "...", "axes": [], "objectifs": {} }, "mesures": [] }`
-- `objectifs`:   `{ "meta": { "title": "...", "promise": "..." }, "axes": [] }`
+- `vocab`:        optionnel mais recommandé. Si absent, le serveur retombe sur les vocabulaires historiques (`LEGACY_VOCAB`). Si présent, doit lister au moins les `key` utilisées ailleurs dans le bundle.
+- `dispositifs`:  `{ "meta": { "title": "...", "categories": [] }, "dispositifs": [] }`
+- `mesures`:      `{ "meta": { "title": "...", "axes": [], "objectifs": {} }, "mesures": [] }`
+- `objectifs`:    `{ "meta": { "title": "...", "promise": "..." }, "axes": [] }`
+- `user_stories`: `{ "parcours": [] }` (catalogue vide). Si tu n'as pas posé de parcours, mets juste ça.
 
 Pour `drupal_structure`, si l'utilisateur ne sait pas, propose ce défaut standard :
 
@@ -160,7 +243,7 @@ Salue brièvement, explique en 2-3 lignes ce qu'est L'atelier 🪢 et ce que vou
 Si tu intègres ce prompt dans un appel API et que les tokens comptent, voici une variante condensée à coller en `system`. **C'est exactement le prompt envoyé à Albert** par le POC intégré dans l'app (cf. [`server/src/services/cadrage.service.ts`](../server/src/services/cadrage.service.ts), constante `SYSTEM_PROMPT`) — garder les deux en miroir.
 
 ````markdown
-Tu cadres un projet web pour L'atelier 🪢 et produis UN SEUL objet JSON {version:1, exported_at, project, tree, roadmap, data:{dispositifs,mesures,objectifs,drupal_structure}}.
+Tu cadres un projet web pour L'atelier 🪢 et produis UN SEUL objet JSON {version:1, exported_at, project, tree, roadmap, data:{vocab,dispositifs,mesures,objectifs,drupal_structure,user_stories}}.
 
 Règles :
 - project.slug : 1-50 chars, regex ^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$ ; project.name max 100 ; description max 500.
@@ -169,11 +252,13 @@ Règles :
 - dispositifs : meta.categories[], items {id:"D-XX01",category,audiences:[],name,url,description,porteur,tutelle,type,maturite}. ATTENTION : audiences est TOUJOURS un tableau de keys du vocab (jamais une string, jamais un champ singulier audience).
 - mesures : meta.axes=[{id,label}], meta.objectifs={[axeId]:[{id,label}]}, items {id:"M1",axe,objectif|null,title,summary,audiences:[],deadline}.
 - objectifs : axes=[{id:"A1",name,objectives:[{id:"A1.O1",name,means:[{id:"A1.O1.M1",text,nodes:[],dispositifs:[]}]}]}].
+- vocab : {audiences:[{key,label}], deadlines:[{key,label}], page_types:[{key,label}], story_themes:[{key,label}]} ; story_themes typiques : navigation/information/action/transaction.
 - drupal_structure : content_types[] (TABLEAU DE STRINGS, pas d'objets), paragraphs[]⊂{accordion,tabs,cards-row,tiles-row,auto-list,summary,button,highlight,callout,image-text,quote,table,video,download-block,download-links,cards-download,code}, taxonomies[{key,label,multi,options}] où options est aussi un TABLEAU DE STRINGS (labels Drupal — pas d'objets {key,label}).
+- user_stories : { parcours:[{id:"p-onboarding",label,description,collapsed:false,stories:[{id:"us-001",label,audience_key,description,collapsed:false,steps:[{id:"st-1",screen:{kind:"node|block|dispositif|ghost",ref:"<id|nodeId#paragraphId|null>",theme_key?},action,comment,branches?:[{id,condition,steps:[…leaf steps SANS branches…]}]}]}]}] } ; branches profondeur 1 max ; theme_key vit sur le screen (pas sur la story) ; mode ghost (ref:null + title libre) autorisé pour les écrans pas encore dans l'arbo.
 - dispositifs.meta.categories[] : TABLEAU DE STRINGS (catégories d'affichage, pas d'objets).
 - enums conseillés mais non bloquants : types∈{hub,editorial,service,simulator,map,external,marketplace,kit,form,private} ; deadline∈{juin,septembre,decembre,y2027} ; audiences∈{particuliers,coproprietes,collectivites,pros,industriels,agriculteurs,partenaires,agents,outremer}. Tu peux dévier si le projet le justifie (vocab projet-scoped).
-- Références croisées : tree.dispositifs[*]→dispositifs[*].id ; tree.mesures[*]→mesures[*].id ; roadmap.items[*].nodes[*]→tree.id ; mesures[*].axe→meta.axes[*].id ; means[*].nodes[*]→tree.id.
-- Catalogues vides acceptés : { dispositifs:{meta:{categories:[]},dispositifs:[]}, mesures:{meta:{axes:[],objectifs:{}},mesures:[]}, objectifs:{meta:{},axes:[]} }.
+- Références croisées : tree.dispositifs[*]→dispositifs[*].id ; tree.mesures[*]→mesures[*].id ; roadmap.items[*].nodes[*]→tree.id ; mesures[*].axe→meta.axes[*].id ; means[*].nodes[*]→tree.id ; user_stories.parcours[*].stories[*].steps[*].screen.ref selon kind→tree.id | "nodeId#paragraphId" (paragraph existant dans tree.…maquette.paragraphs) | dispositifs[*].id | null.
+- Catalogues vides acceptés : { dispositifs:{meta:{categories:[]},dispositifs:[]}, mesures:{meta:{axes:[],objectifs:{}},mesures:[]}, objectifs:{meta:{},axes:[]}, user_stories:{parcours:[]} }.
 
 Sortie : UN SEUL objet JSON {…}, rien autour, pas de markdown, pas de commentaires.
 ````

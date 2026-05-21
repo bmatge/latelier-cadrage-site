@@ -76,7 +76,7 @@ function getBundleValidator(): AjvValidateFn {
 // la consommation API (tokens comptent). Si on modifie le format du bundle,
 // mettre à jour ici en miroir de la `docs/prompt-cadrage.md` (section
 // « Variante courte »).
-const SYSTEM_PROMPT = `Tu cadres un projet web pour L'atelier 🪢 et produis UN SEUL objet JSON {version:1, exported_at, project, tree, roadmap, data:{dispositifs,mesures,objectifs,drupal_structure}}.
+const SYSTEM_PROMPT = `Tu cadres un projet web pour L'atelier 🪢 et produis UN SEUL objet JSON {version:1, exported_at, project, tree, roadmap, data:{vocab,dispositifs,mesures,objectifs,drupal_structure,user_stories}}.
 
 Règles :
 - project.slug : 1-50 chars, regex ^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$ ; project.name max 100 ; description max 500.
@@ -85,11 +85,13 @@ Règles :
 - dispositifs : meta.categories[], items {id:"D-XX01",category,audiences:[],name,url,description,porteur,tutelle,type,maturite}. ATTENTION : audiences est TOUJOURS un tableau de keys du vocab (jamais une string, jamais un champ singulier audience).
 - mesures : meta.axes=[{id,label}], meta.objectifs={[axeId]:[{id,label}]}, items {id:"M1",axe,objectif|null,title,summary,audiences:[],deadline}.
 - objectifs : axes=[{id:"A1",name,objectives:[{id:"A1.O1",name,means:[{id:"A1.O1.M1",text,nodes:[],dispositifs:[]}]}]}].
+- vocab : {audiences:[{key,label}], deadlines:[{key,label}], page_types:[{key,label}], story_themes:[{key,label}]} ; story_themes typiques : navigation/information/action/transaction.
 - drupal_structure : content_types[] (TABLEAU DE STRINGS, pas d'objets), paragraphs[]⊂{accordion,tabs,cards-row,tiles-row,auto-list,summary,button,highlight,callout,image-text,quote,table,video,download-block,download-links,cards-download,code}, taxonomies[{key,label,multi,options}] où options est aussi un TABLEAU DE STRINGS (labels Drupal — pas d'objets {key,label}).
+- user_stories : { parcours:[{id:"p-onboarding",label,description,collapsed:false,stories:[{id:"us-001",label,audience_key,description,collapsed:false,steps:[{id:"st-1",screen:{kind:"node|block|dispositif|ghost",ref:"<id|nodeId#paragraphId|null>",theme_key?},action,comment,branches?:[{id,condition,steps:[…leaf steps SANS branches…]}]}]}]}] } ; branches profondeur 1 max ; theme_key vit sur le screen (pas sur la story) ; mode ghost (ref:null + title libre) autorisé pour les écrans pas encore dans l'arbo.
 - dispositifs.meta.categories[] : TABLEAU DE STRINGS (catégories d'affichage, pas d'objets).
 - enums conseillés mais non bloquants : types∈{hub,editorial,service,simulator,map,external,marketplace,kit,form,private} ; deadline∈{juin,septembre,decembre,y2027} ; audiences∈{particuliers,coproprietes,collectivites,pros,industriels,agriculteurs,partenaires,agents,outremer}. Tu peux dévier si le projet le justifie (vocab projet-scoped).
-- Références croisées : tree.dispositifs[*]→dispositifs[*].id ; tree.mesures[*]→mesures[*].id ; roadmap.items[*].nodes[*]→tree.id ; mesures[*].axe→meta.axes[*].id ; means[*].nodes[*]→tree.id.
-- Catalogues vides acceptés : { dispositifs:{meta:{categories:[]},dispositifs:[]}, mesures:{meta:{axes:[],objectifs:{}},mesures:[]}, objectifs:{meta:{},axes:[]} }.
+- Références croisées : tree.dispositifs[*]→dispositifs[*].id ; tree.mesures[*]→mesures[*].id ; roadmap.items[*].nodes[*]→tree.id ; mesures[*].axe→meta.axes[*].id ; means[*].nodes[*]→tree.id ; user_stories.parcours[*].stories[*].steps[*].screen.ref selon kind→tree.id | "nodeId#paragraphId" (paragraph existant dans tree.…maquette.paragraphs) | dispositifs[*].id | null.
+- Catalogues vides acceptés : { dispositifs:{meta:{categories:[]},dispositifs:[]}, mesures:{meta:{axes:[],objectifs:{}},mesures:[]}, objectifs:{meta:{},axes:[]}, user_stories:{parcours:[]} }.
 
 Sortie : UN SEUL objet JSON {…}, rien autour, pas de markdown, pas de commentaires.`;
 

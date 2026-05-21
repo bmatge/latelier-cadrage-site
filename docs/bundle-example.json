@@ -312,6 +312,59 @@
           "options": ["M1", "M2"]
         }
       ]
+    },
+    "user_stories": {
+      "parcours": [
+        {
+          "id": "p-decouverte",
+          "label": "Découverte du portail",
+          "description": "Premier contact d'un aidant familial avec le site",
+          "collapsed": false,
+          "stories": [
+            {
+              "id": "us-trouver-aide",
+              "label": "Trouver une aide pour son proche",
+              "audience_key": "particuliers",
+              "description": "L'aidant cherche à savoir quelles aides sont disponibles pour son cas.",
+              "collapsed": false,
+              "steps": [
+                {
+                  "id": "st-1",
+                  "screen": { "kind": "node", "ref": "p1", "theme_key": "navigation" },
+                  "action": "Arriver sur la page d'accueil",
+                  "comment": ""
+                },
+                {
+                  "id": "st-2",
+                  "screen": { "kind": "node", "ref": "p1a", "theme_key": "information" },
+                  "action": "Lire les types d'aides disponibles",
+                  "comment": "Vocabulaire technique à vulgariser",
+                  "branches": [
+                    {
+                      "id": "br-1",
+                      "condition": "Si situation complexe",
+                      "steps": [
+                        {
+                          "id": "st-3",
+                          "screen": { "kind": "dispositif", "ref": "D-CL01" },
+                          "action": "Contacter une assistante sociale via le portail externe",
+                          "comment": "Sortie de site"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "st-4",
+                  "screen": { "kind": "ghost", "ref": null, "title": "Page comparateur d'aides" },
+                  "action": "Comparer 2 aides côte à côte",
+                  "comment": "Page à créer dans l'arbo — pour l'instant ghost"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   }
 }
