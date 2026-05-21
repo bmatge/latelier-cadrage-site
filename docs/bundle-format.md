@@ -20,7 +20,7 @@ Un bundle est un objet JSON unique qui contient **tout l'état courant d'un proj
     "mesures":          { "meta": {…}, "mesures":     [ … ] },
     "objectifs":        { "meta": {…}, "axes":        [ … ] },
     "drupal_structure": { "content_types": [], "paragraphs": [], "paragraph_labels": {}, "taxonomies": [] },
-    "user_stories":     { "stories": [ … ] }
+    "user_stories":     { "parcours": [ { "id", "label", "stories": [ … ] } ] }
   }
 }
 ```
@@ -239,55 +239,79 @@ Si `drupal_structure` est absent du bundle, l'import applique `DEFAULT_DRUPAL_ST
 
 ## 7. `data.user_stories` — Parcours utilisateur
 
-Liste de **user stories** (tâches d'usager) avec leur enchaînement d'écrans. Introduit en 2026-05-21 ; cf. [ADR-018](../../Documents/Obsidian/30-Knowledge/ADR/ADR-018-parcours-utilisateur-entite-ecran-polymorphe.md). Source TS : [`shared/src/user-stories.ts`](../shared/src/user-stories.ts).
+**Hiérarchie à 2 niveaux** : `parcours[]` (groupes thématiques) contiennent des `stories[]` (user stories, tâches d'usagers) qui contiennent des `steps[]` (écrans traversés). Introduit en 2026-05-21, hiérarchie ajoutée en 2026-05-22 ; cf. [ADR-018](../../Documents/Obsidian/30-Knowledge/ADR/ADR-018-parcours-utilisateur-entite-ecran-polymorphe.md). Source TS : [`shared/src/user-stories.ts`](../shared/src/user-stories.ts).
 
 ```json
 "user_stories": {
-  "stories": [
+  "parcours": [
     {
-      "id": "us-001",
-      "label": "Comparer 2 aides énergie",
-      "audience_key": "particuliers",     // vocab.audiences[].key
-      "theme_key": "information",         // vocab.story_themes[].key
-      "description": "Le visiteur cherche à comprendre laquelle des 2 aides est la plus avantageuse pour son cas.",
-      "steps": [
+      "id": "p-aides",
+      "label": "Demander une aide",
+      "description": "Toutes les démarches pour obtenir une aide énergie",
+      "collapsed": false,
+      "stories": [
         {
-          "id": "st-1",
-          "screen": { "kind": "node", "ref": "n-comparaison" },
-          "action": "Saisir son profil (logement + revenus)",
-          "comment": "Le visiteur peut hésiter ici sur le seuil RFR — à clarifier",
-          "branches": [
+          "id": "us-001",
+          "label": "Comparer 2 aides énergie",
+          "audience_key": "particuliers",
+          "description": "Le visiteur cherche à comprendre laquelle des 2 aides est la plus avantageuse pour son cas.",
+          "collapsed": false,
+          "steps": [
             {
-              "id": "br-1",
-              "condition": "Si non éligible",
-              "steps": [
+              "id": "st-1",
+              "screen": {
+                "kind": "node",
+                "ref": "n-comparaison",
+                "theme_key": "information"
+              },
+              "action": "Saisir son profil (logement + revenus)",
+              "comment": "Le visiteur peut hésiter ici sur le seuil RFR — à clarifier",
+              "branches": [
                 {
-                  "id": "st-2",
-                  "screen": { "kind": "dispositif", "ref": "d-anah" },
-                  "action": "Voir les autres aides éligibles",
-                  "comment": ""
+                  "id": "br-1",
+                  "condition": "Si non éligible",
+                  "steps": [
+                    {
+                      "id": "st-2",
+                      "screen": { "kind": "dispositif", "ref": "d-anah" },
+                      "action": "Voir les autres aides éligibles",
+                      "comment": ""
+                    }
+                  ]
                 }
               ]
+            },
+            {
+              "id": "st-3",
+              "screen": {
+                "kind": "block",
+                "ref": "n-comparaison#p-tableau",
+                "theme_key": "information"
+              },
+              "action": "Lire le comparatif chiffré",
+              "comment": ""
+            },
+            {
+              "id": "st-4",
+              "screen": { "kind": "ghost", "ref": null, "title": "Page contact en cas de litige" },
+              "action": "Contacter le service client",
+              "comment": "À créer dans l'arbo — pour l'instant placeholder"
             }
           ]
-        },
-        {
-          "id": "st-3",
-          "screen": { "kind": "block", "ref": "n-comparaison#p-tableau" },
-          "action": "Lire le comparatif chiffré",
-          "comment": ""
-        },
-        {
-          "id": "st-4",
-          "screen": { "kind": "ghost", "ref": null, "title": "Page contact en cas de litige" },
-          "action": "Contacter le service client",
-          "comment": "À créer dans l'arbo — pour l'instant placeholder"
         }
       ]
     }
   ]
 }
 ```
+
+### Format legacy `{ stories: [...] }`
+
+Les bundles produits avant 2026-05-22 utilisent un format plat `{ stories: [...] }` (sans niveau `parcours`). Le serveur les migre **automatiquement** au boundary import via `normalizeUserStories()` : les stories atterrissent dans un parcours par défaut `{ id: 'p-default', label: 'Sans groupe', stories: [...] }`. Aucune action requise côté utilisateur.
+
+### Thème de l'écran (et non de la story)
+
+`theme_key` se trouve **sur chaque `screen`** (étape), pas sur la user story. Il caractérise la nature de l'écran lui-même (information / action / navigation / transaction), pas de la tâche qui le traverse. Un legacy `story.theme_key` (modèle initial) est propagé à tous les screens sans theme_key explicite au normalize.
 
 ### Sémantique du `screen`
 
@@ -322,9 +346,9 @@ Aucune contrainte FK SQL : les références sont des chaînes de caractères, no
 - `data.mesures.mesures[*].axe` doit appartenir à `data.mesures.meta.axes[*].id`.
 - `data.mesures.mesures[*].objectif` doit appartenir à `data.mesures.meta.objectifs[axe][*].id` (ou être `null`).
 - `data.dispositifs.dispositifs[*].category` doit appartenir à `data.dispositifs.meta.categories[*]`.
-- `data.user_stories.stories[*].audience_key` doit appartenir à `data.vocab.audiences[*].key`.
-- `data.user_stories.stories[*].theme_key` doit appartenir à `data.vocab.story_themes[*].key`.
-- `data.user_stories.stories[*].steps[*].screen.ref` doit pointer vers `tree.…id` (kind=`node`), `nodeId#paragraphId` existants dans `tree.…maquette.paragraphs` (kind=`block`), ou `data.dispositifs.dispositifs[*].id` (kind=`dispositif`). Si `kind=ghost`, `ref` est null.
+- `data.user_stories.parcours[*].stories[*].audience_key` doit appartenir à `data.vocab.audiences[*].key`.
+- `data.user_stories.parcours[*].stories[*].steps[*].screen.theme_key` doit appartenir à `data.vocab.story_themes[*].key`.
+- `data.user_stories.parcours[*].stories[*].steps[*].screen.ref` doit pointer vers `tree.…id` (kind=`node`), `nodeId#paragraphId` existants dans `tree.…maquette.paragraphs` (kind=`block`), ou `data.dispositifs.dispositifs[*].id` (kind=`dispositif`). Si `kind=ghost`, `ref` est null.
 
 Un bundle qui viole une de ces règles s'importe quand même, mais des liens apparaîtront comme "manquants" dans l'UI (libellés cassés, compteurs faux).
 

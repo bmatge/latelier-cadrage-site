@@ -441,9 +441,31 @@
 
     "userStoriesCatalog": {
       "type": "object",
-      "description": "Parcours utilisateur : user stories (tâches usagers) avec leur suite d'écrans. Un écran peut être un node de l'arbo, un bloc d'une page, une ressource externe (dispositif) ou un placeholder à résoudre. Cf. ADR-018 et shared/src/user-stories.ts pour la sémantique.",
+      "description": "Parcours utilisateur : 2 niveaux. Niveau 1 = `parcours[]` (groupes thématiques, ex. Onboarding / Réclamation). Niveau 2 = `parcours[].stories[]` (user stories, tâches usagers avec leur suite d'écrans). Cf. ADR-018 et shared/src/user-stories.ts pour la sémantique. Un bundle legacy `{ stories: [...] }` (modèle plat antérieur à 2026-05-22) est toléré en entrée et migré vers `{ parcours: [{ id: 'p-default', label: 'Sans groupe', stories: [...] }] }` au boundary import.",
       "additionalProperties": false,
       "properties": {
+        "parcours": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/userParcours" }
+        },
+        "stories": {
+          "type": "array",
+          "description": "DEPRECATED : modèle plat antérieur à 2026-05-22. Migré automatiquement à l'import vers un parcours par défaut.",
+          "items": { "$ref": "#/$defs/userStory" }
+        }
+      }
+    },
+
+    "userParcours": {
+      "type": "object",
+      "required": ["id", "label", "stories"],
+      "additionalProperties": false,
+      "description": "Groupe thématique de user stories.",
+      "properties": {
+        "id":          { "type": "string", "minLength": 1 },
+        "label":       { "type": "string" },
+        "description": { "type": "string" },
+        "collapsed":   { "type": "boolean", "description": "État replié/déplié persisté." },
         "stories": {
           "type": "array",
           "items": { "$ref": "#/$defs/userStory" }

@@ -1,8 +1,12 @@
 // User stories & parcours utilisateur — modèle partagé back+front.
 //
-// Une `UserStory` représente une tâche/objectif d'usager (cf. /parcours).
-// Chaque story contient une suite ordonnée de `Step`. Chaque step pointe
-// vers un `Screen` polymorphe qui peut être :
+// Hiérarchie à 3 niveaux :
+//   - `Parcours` : un groupe thématique de user stories (ex. « Démarche
+//     de réclamation », « Onboarding »). Niveau introduit en 2026-05-22.
+//   - `UserStory` : une tâche/objectif d'usager, avec ses étapes.
+//   - `Step` : un écran traversé, avec action + commentaire.
+//
+// Chaque step pointe vers un `Screen` polymorphe qui peut être :
 //   - 'ghost'      : non encore résolu (texte libre, à promouvoir plus tard)
 //   - 'node'       : un node de l'arborescence (ref = node.id)
 //   - 'block'      : un paragraph dans un node (ref = "nodeId#paragraphId")
@@ -66,11 +70,28 @@ export interface UserStory {
   readonly steps: readonly Step[];
 }
 
-export interface UserStoriesData {
+export interface Parcours {
+  readonly id: string;
+  readonly label: string;
+  readonly description?: string;
+  /** État replié/déplié du groupe (persisté). */
+  readonly collapsed?: boolean;
   readonly stories: readonly UserStory[];
 }
 
-export const EMPTY_USER_STORIES: UserStoriesData = { stories: [] };
+export interface UserStoriesData {
+  readonly parcours: readonly Parcours[];
+}
+
+export const EMPTY_USER_STORIES: UserStoriesData = { parcours: [] };
+
+/**
+ * Libellé et id du parcours créé automatiquement quand on importe un
+ * bundle legacy `{ stories: [...] }` (modèle plat antérieur à 2026-05-22)
+ * ou quand on initialise un projet vide.
+ */
+export const DEFAULT_PARCOURS_ID = 'p-default';
+export const DEFAULT_PARCOURS_LABEL = 'Sans groupe';
 
 /** Construit la ref `nodeId#paragraphId` pour un screen de kind 'block'. */
 export function blockRef(nodeId: string, paragraphId: string): string {
@@ -92,14 +113,56 @@ export function parseBlockRef(ref: string): { nodeId: string; paragraphId: strin
  */
 export function normalizeUserStories(input: unknown): UserStoriesData {
   if (!input || typeof input !== 'object') return EMPTY_USER_STORIES;
-  const raw = input as { stories?: unknown };
-  const stories = Array.isArray(raw.stories) ? raw.stories : [];
-  const out: UserStory[] = [];
-  for (const s of stories) {
-    const norm = normalizeStory(s);
-    if (norm) out.push(norm);
+  const raw = input as { parcours?: unknown; stories?: unknown };
+
+  // Nouveau format : `{ parcours: [...] }`
+  if (Array.isArray(raw.parcours)) {
+    const out: Parcours[] = [];
+    for (const p of raw.parcours) {
+      const norm = normalizeParcours(p);
+      if (norm) out.push(norm);
+    }
+    return { parcours: out };
   }
-  return { stories: out };
+
+  // Legacy `{ stories: [...] }` (modèle plat antérieur à 2026-05-22) :
+  // on l'enveloppe dans un parcours par défaut pour préserver les données.
+  if (Array.isArray(raw.stories)) {
+    const stories: UserStory[] = [];
+    for (const s of raw.stories) {
+      const norm = normalizeStory(s);
+      if (norm) stories.push(norm);
+    }
+    if (stories.length === 0) return EMPTY_USER_STORIES;
+    return {
+      parcours: [
+        {
+          id: DEFAULT_PARCOURS_ID,
+          label: DEFAULT_PARCOURS_LABEL,
+          stories,
+        },
+      ],
+    };
+  }
+
+  return EMPTY_USER_STORIES;
+}
+
+function normalizeParcours(input: unknown): Parcours | null {
+  if (!input || typeof input !== 'object') return null;
+  const raw = input as Record<string, unknown>;
+  const id = typeof raw['id'] === 'string' && raw['id'] ? raw['id'] : null;
+  if (!id) return null;
+  const label = typeof raw['label'] === 'string' ? raw['label'] : '';
+  const description = typeof raw['description'] === 'string' ? raw['description'] : '';
+  const collapsed = raw['collapsed'] === true;
+  const storiesRaw = Array.isArray(raw['stories']) ? raw['stories'] : [];
+  const stories: UserStory[] = [];
+  for (const s of storiesRaw) {
+    const norm = normalizeStory(s);
+    if (norm) stories.push(norm);
+  }
+  return { id, label, description, collapsed, stories };
 }
 
 function normalizeStory(input: unknown): UserStory | null {

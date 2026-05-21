@@ -193,10 +193,10 @@ describe('import-export bundle integrity', () => {
 
     const res = await agent.get('/api/projects/portail-electrification/export');
     expect(res.body.data).toHaveProperty('user_stories');
-    expect(res.body.data.user_stories).toEqual({ stories: [] });
+    expect(res.body.data.user_stories).toEqual({ parcours: [] });
   });
 
-  it('bundle sans `data.user_stories` → fallback `{ stories: [] }`', async () => {
+  it('bundle sans `data.user_stories` → fallback `{ parcours: [] }`', async () => {
     const fx = await makeFixture();
     const agent = await loginAs(fx, 'alice@test.fr', EDITOR);
 
@@ -224,38 +224,90 @@ describe('import-export bundle integrity', () => {
     expect(imported.status).toBe(201);
 
     const stored = (await agent.get('/api/projects/parcours-fallback/data/user_stories')).body.data;
-    expect(stored).toEqual({ stories: [] });
+    expect(stored).toEqual({ parcours: [] });
   });
 
-  it('round-trip user_stories : export → import → export préserve les stories', async () => {
+  it('bundle legacy `data.user_stories = { stories: [...] }` est migré vers un parcours par défaut', async () => {
+    // Bundles produits avant le commit D5 utilisent le format plat
+    // `{ stories: [...] }`. Le normalize au boundary import doit les
+    // envelopper dans un parcours par défaut pour préserver les données.
     const fx = await makeFixture();
     const agent = await loginAs(fx, 'alice@test.fr', EDITOR);
 
-    // 1. on pose des stories sur le projet historique
+    const bundle = {
+      version: 1,
+      project: { slug: 'parcours-legacy', name: 'Parcours legacy', description: '' },
+      tree: { id: 'root', label: 'P', type: 'hub', children: [] },
+      roadmap: { meta: {}, items: [] },
+      data: {
+        user_stories: {
+          stories: [{ id: 'us-old', label: 'Vieille story', steps: [] }],
+        },
+        dispositifs: { dispositifs: [] },
+        mesures: { mesures: [] },
+        objectifs: { axes: [] },
+        drupal_structure: {
+          content_types: [],
+          paragraphs: [],
+          paragraph_labels: {},
+          taxonomies: [],
+        },
+        vocab: { audiences: [], deadlines: [], page_types: [] },
+      },
+    };
+
+    const imp = await agent.post('/api/projects/import').send({ bundle });
+    expect(imp.status).toBe(201);
+
+    const stored = (await agent.get('/api/projects/parcours-legacy/data/user_stories')).body.data;
+    expect(stored.parcours).toHaveLength(1);
+    expect(stored.parcours[0].id).toBe('p-default');
+    expect(stored.parcours[0].stories).toHaveLength(1);
+    expect(stored.parcours[0].stories[0].id).toBe('us-old');
+  });
+
+  it('round-trip user_stories : export → import → export préserve les parcours', async () => {
+    const fx = await makeFixture();
+    const agent = await loginAs(fx, 'alice@test.fr', EDITOR);
+
+    // 1. on pose des parcours sur le projet historique
     const userStories = {
-      stories: [
+      parcours: [
         {
-          id: 'us-1',
-          label: 'Comparer 2 aides',
-          audience_key: 'particuliers',
-          theme_key: 'information',
-          description: 'Cas test',
-          steps: [
+          id: 'p-reclamation',
+          label: 'Réclamation',
+          description: 'Toutes les démarches de litige',
+          collapsed: false,
+          stories: [
             {
-              id: 'st-1',
-              screen: { kind: 'node', ref: 'root', title: 'Accueil' },
-              action: 'Cliquer sur comparer',
-              comment: '',
-              branches: [
+              id: 'us-1',
+              label: 'Comparer 2 aides',
+              audience_key: 'particuliers',
+              description: 'Cas test',
+              collapsed: false,
+              steps: [
                 {
-                  id: 'br-1',
-                  condition: 'Si éligible',
-                  steps: [
+                  id: 'st-1',
+                  screen: {
+                    kind: 'node',
+                    ref: 'root',
+                    title: 'Accueil',
+                    theme_key: 'information',
+                  },
+                  action: 'Cliquer sur comparer',
+                  comment: '',
+                  branches: [
                     {
-                      id: 'st-2',
-                      screen: { kind: 'ghost', ref: null, title: 'Page suite' },
-                      action: 'Continuer',
-                      comment: '',
+                      id: 'br-1',
+                      condition: 'Si éligible',
+                      steps: [
+                        {
+                          id: 'st-2',
+                          screen: { kind: 'ghost', ref: null, title: 'Page suite' },
+                          action: 'Continuer',
+                          comment: '',
+                        },
+                      ],
                     },
                   ],
                 },
@@ -279,7 +331,7 @@ describe('import-export bundle integrity', () => {
     const imp = await agent.post('/api/projects/import').send({ bundle: cloned });
     expect(imp.status).toBe(201);
 
-    // 3. l'export du clone doit contenir les mêmes stories
+    // 3. l'export du clone doit contenir les mêmes parcours
     const reExported = (await agent.get('/api/projects/parcours-clone/export')).body;
     expect(reExported.data.user_stories).toEqual(userStories);
   });

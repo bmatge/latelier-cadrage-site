@@ -208,7 +208,7 @@ export async function seedDefaultProject(k: Kdb): Promise<void> {
     k,
     projectId,
     'user_stories',
-    JSON.stringify({ stories: [] }),
+    JSON.stringify({ parcours: [] }),
     sysUser.id,
   );
 }

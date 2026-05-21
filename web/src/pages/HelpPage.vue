@@ -103,10 +103,11 @@ const sections: Section[] = [
     id: 'parcours',
     label: '9. Parcours utilisateur',
     children: [
-      { id: 'parcours-concept', label: 'Le concept : user stories' },
+      { id: 'parcours-concept', label: 'Hiérarchie : parcours et user stories' },
       { id: 'parcours-screens', label: 'Les 4 types d’écran' },
       { id: 'parcours-promotion', label: 'Créer depuis le picker' },
       { id: 'parcours-branches', label: 'Embranchements conditionnels' },
+      { id: 'parcours-drag', label: 'Drag-and-drop : tout est déplaçable' },
     ],
   },
 ];
@@ -1509,19 +1510,24 @@ function onImgError(event: Event): void {
         <h2>9. Parcours utilisateur</h2>
 
         <section id="parcours-concept">
-          <h3>Le concept : user stories</h3>
+          <h3>Hiérarchie : parcours et user stories</h3>
+          <p>La page modélise ce que les usagers viennent faire, à <strong>2 niveaux</strong> :</p>
+          <ul>
+            <li>
+              <strong>Parcours</strong> (groupe) — un thème ou un domaine métier, ex. « Onboarding
+              nouveau client », « Réclamation », « Démarche d’aide ». Sert à regrouper des user
+              stories qui partagent un même contexte. Repli/dépli persisté.
+            </li>
+            <li>
+              <strong>User story</strong> (carte) — une tâche d’usager précise (« comparer deux
+              aides », « savoir si je suis éligible »), avec son public-cible et son
+              <strong>fil de fer d’étapes</strong>.
+            </li>
+          </ul>
           <p>
-            Un <strong>parcours utilisateur</strong> formalise ce qu’un usager vient faire sur le
-            site et par quelles pages il passe pour y arriver. C’est la rencontre entre les
-            <em>tâches de l’usager</em> (« comparer deux aides », « savoir si je suis éligible », «
-            contacter un référent ») et l’<em>arborescence</em> du site.
-          </p>
-          <p>
-            Chaque entrée est une <strong>user story</strong> qui porte un libellé, un public-cible
-            (depuis <code>vocab.audiences</code>), un thème (depuis
-            <code>vocab.story_themes</code> : navigation / information / action / transaction par
-            défaut), une description courte, et surtout un
-            <strong>fil de fer d’étapes</strong> dépliable.
+            Le thème (<code>vocab.story_themes</code> : navigation / information / action /
+            transaction…) est posé <strong>sur chaque écran</strong> (étape) — il caractérise la
+            nature de l’écran, pas la story qui le traverse.
           </p>
           <p>
             Différence avec <a href="#objectifs">la pyramide d’Objectifs</a> : la pyramide modélise
@@ -1612,6 +1618,32 @@ function onImgError(event: Event): void {
           <p>
             Ce verrou est volontaire : il garde l’éditeur visuellement simple et empêche la dérive
             vers un outil de workflow BPMN.
+          </p>
+        </section>
+
+        <section id="parcours-drag">
+          <h3>Drag-and-drop : tout est déplaçable</h3>
+          <p>
+            Une poignée <code>fr-icon-drag-move-2-line</code> (≡) est affichée sur les 3 niveaux —
+            parcours, user stories, étapes. Glisser sur la moitié supérieure/inférieure (ou
+            gauche/droite pour les étapes) de la cible définit l’insertion avant ou après ; un trait
+            bleu matérialise la position.
+          </p>
+          <ul>
+            <li><strong>Parcours</strong> : réordonner les groupes verticalement.</li>
+            <li>
+              <strong>User stories</strong> : réordonner dans un parcours, ou les déplacer d’un
+              parcours à un autre (drop sur une story cible, ou directement dans la zone du parcours
+              pour append à la fin).
+            </li>
+            <li>
+              <strong>Étapes</strong> : réordonner dans une story, ou les déplacer d’une story à une
+              autre (cross-story). Les sub-steps d’une branche se réorganisent dans la même branche.
+            </li>
+          </ul>
+          <p>
+            Les alternatives clavier-friendly restent disponibles : flèches ◀ ▶ sur chaque étape. Le
+            drag ne s’amorce que depuis la poignée — pas en cliquant sur un input ou un bouton.
           </p>
         </section>
       </section>

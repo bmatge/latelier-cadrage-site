@@ -24,6 +24,7 @@ import { AppError, ForbiddenError, NotFoundError, ValidationError } from '../dom
 import { logAudit } from './audit.service.js';
 import { hasPermission } from './rbac.service.js';
 import type { RoleGrant } from '@latelier/shared';
+import { normalizeUserStories } from '@latelier/shared';
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/;
 const EXPORT_KEYS = [
@@ -143,7 +144,7 @@ export async function createProject(k: Kdb, input: CreateProjectInput): Promise<
       ['objectifs', { axes: [] }],
       ['drupal_structure', DEFAULT_DRUPAL_STRUCTURE],
       ['vocab', DEFAULT_VOCAB],
-      ['user_stories', { stories: [] }],
+      ['user_stories', { parcours: [] }],
     ];
     for (const [key, value] of seeds) {
       await replaceProjectData(trx, projectId, key, JSON.stringify(value), sysUser.id);
@@ -277,6 +278,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 export function normalizeDataValue(key: string, value: unknown): unknown {
   if (key === 'dispositifs') return normalizeDispositifs(value);
   if (key === 'drupal_structure') return normalizeDrupalStructure(value);
+  if (key === 'user_stories') return normalizeUserStories(value);
   return value;
 }
 
@@ -447,7 +449,7 @@ export async function importProjectFromBundle(
       objectifs: { axes: [] },
       drupal_structure: DEFAULT_DRUPAL_STRUCTURE,
       vocab: LEGACY_VOCAB,
-      user_stories: { stories: [] },
+      user_stories: { parcours: [] },
     };
     for (const key of EXPORT_KEYS) {
       const provided = dataBundle[key];
