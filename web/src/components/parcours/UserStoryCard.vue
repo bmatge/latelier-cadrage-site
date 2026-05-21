@@ -73,10 +73,13 @@ const stepCount = computed(() => {
   <article class="story-card">
     <header class="story-card__head">
       <span
-        v-if="canEdit"
         class="story-card__drag-handle fr-icon-drag-move-2-line"
+        :class="{ 'story-card__drag-handle--disabled': !canEdit }"
         aria-hidden="true"
-        title="Glisser pour déplacer la user story"
+        :title="
+          canEdit ? 'Glisser pour déplacer la user story' : 'Activer l\'édition pour déplacer'
+        "
+        @click="canEdit ? null : emit('edit-attempt')"
       ></span>
       <button
         type="button"
@@ -121,11 +124,11 @@ const stepCount = computed(() => {
         </select>
       </label>
       <button
-        v-if="canEdit"
         type="button"
         class="fr-btn fr-btn--tertiary-no-outline fr-btn--sm fr-icon-delete-line"
-        title="Supprimer cette user story"
-        @click="emit('remove')"
+        :disabled="!canEdit"
+        :title="canEdit ? 'Supprimer cette user story' : 'Activer l\'édition pour supprimer'"
+        @click="canEdit ? emit('remove') : emit('edit-attempt')"
       ></button>
     </header>
 
@@ -175,6 +178,10 @@ const stepCount = computed(() => {
 .story-card__drag-handle:active {
   cursor: grabbing;
   color: var(--text-action-high-blue-france, #000091);
+}
+.story-card__drag-handle--disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
 }
 .story-card__toggle {
   flex-shrink: 0;

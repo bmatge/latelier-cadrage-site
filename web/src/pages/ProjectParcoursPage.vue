@@ -451,13 +451,19 @@ function onParcoursDragStart(e: DragEvent, parcoursId: string): void {
     e.preventDefault();
     return;
   }
+  // Bloque le drag si on a cliqué sur un élément interactif (input/select/
+  // button/textarea/lien). Ailleurs sur le groupe : drag autorisé. Plus
+  // robuste cross-browser que de vérifier `target.closest('.handle')` car
+  // `e.target` dans dragstart varie selon les browsers (parfois le draggable
+  // lui-même, parfois l'enfant sous la souris).
   const target = e.target as HTMLElement;
-  if (!target.closest('.parcours-group__drag-handle')) {
+  if (target.closest('input, textarea, select, button, a, [contenteditable]')) {
     e.preventDefault();
     return;
   }
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData(PARCOURS_DRAG_MIME, parcoursId);
+  e.dataTransfer.setData('text/plain', parcoursId);
 }
 
 function isParcoursDrag(e: DragEvent): boolean {
@@ -513,13 +519,13 @@ function onStoryDragStart(e: DragEvent, parcoursId: string, storyId: string): vo
     return;
   }
   const target = e.target as HTMLElement;
-  if (!target.closest('.story-card__drag-handle')) {
+  if (target.closest('input, textarea, select, button, a, [contenteditable]')) {
     e.preventDefault();
     return;
   }
   // Évite que le dragstart bubble vers le parent `.parcours-group` qui
-  // appellerait son propre preventDefault (sa target n'est pas SA handle)
-  // et tuerait le drag.
+  // déclencherait ALORS son propre drag (la story prendrait l'apparence
+  // d'un drag de parcours). stopPropagation isole les deux niveaux.
   e.stopPropagation();
   e.dataTransfer.effectAllowed = 'move';
   const payload: StoryDragPayload = { parcoursId, storyId };
@@ -685,10 +691,13 @@ const filteredParcours = computed<readonly Parcours[]>(() => {
       >
         <header class="parcours-group__head">
           <span
-            v-if="canEdit"
             class="parcours-group__drag-handle fr-icon-drag-move-2-line"
+            :class="{ 'parcours-group__drag-handle--disabled': !canEdit }"
             aria-hidden="true"
-            title="Glisser pour réordonner les parcours"
+            :title="
+              canEdit ? 'Glisser pour réordonner les parcours' : 'Activer l\'édition pour déplacer'
+            "
+            @click="canEdit ? null : ensureEditOrModal()"
           ></span>
           <button
             type="button"
@@ -712,11 +721,11 @@ const filteredParcours = computed<readonly Parcours[]>(() => {
             </p>
           </div>
           <button
-            v-if="canEdit"
             type="button"
             class="fr-btn fr-btn--tertiary-no-outline fr-btn--sm fr-icon-delete-line"
-            title="Supprimer le parcours"
-            @click="removeParcours(parcours.id)"
+            :disabled="!canEdit"
+            :title="canEdit ? 'Supprimer le parcours' : 'Activer l\'édition pour supprimer'"
+            @click="canEdit ? removeParcours(parcours.id) : ensureEditOrModal()"
           ></button>
         </header>
         <p v-if="!parcours.collapsed" class="parcours-group__desc">
@@ -763,10 +772,10 @@ const filteredParcours = computed<readonly Parcours[]>(() => {
             />
           </div>
           <button
-            v-if="canEdit"
             type="button"
             class="parcours-group__add-story fr-btn fr-btn--tertiary fr-btn--sm fr-icon-add-line fr-btn--icon-left"
-            @click="addStory(parcours.id)"
+            :disabled="!canEdit"
+            @click="canEdit ? addStory(parcours.id) : ensureEditOrModal()"
           >
             User story
           </button>
@@ -855,6 +864,10 @@ const filteredParcours = computed<readonly Parcours[]>(() => {
 .parcours-group__drag-handle:active {
   cursor: grabbing;
   color: var(--text-action-high-blue-france, #000091);
+}
+.parcours-group__drag-handle--disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
 }
 .parcours-group__toggle {
   flex-shrink: 0;
