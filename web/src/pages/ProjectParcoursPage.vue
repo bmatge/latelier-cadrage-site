@@ -306,6 +306,43 @@ async function promoteToNode(payload: { title: string; description: string }): P
   applyScreen({ kind: 'node', ref: newId, title: payload.title });
 }
 
+/**
+ * Drag cross-parcours : on retire le step de la story source et on
+ * l'insère dans la story cible avant/après le step cible. Limité au
+ * rail principal (cf. note dans StoryStepRail).
+ */
+function onCrossMove(payload: {
+  sourceStoryId: string;
+  sourceStepId: string;
+  targetStoryId: string;
+  targetStepId: string;
+  mode: 'before' | 'after';
+}): void {
+  if (!ensureEditOrModal()) return;
+  const next = cloneStories();
+  const sIdx = next.findIndex((s) => s.id === payload.sourceStoryId);
+  const tIdx = next.findIndex((s) => s.id === payload.targetStoryId);
+  if (sIdx < 0 || tIdx < 0) return;
+
+  const sourceSteps = [...next[sIdx]!.steps];
+  const stepIdx = sourceSteps.findIndex((s) => s.id === payload.sourceStepId);
+  if (stepIdx < 0) return;
+  const [moved] = sourceSteps.splice(stepIdx, 1);
+  if (!moved) return;
+  next[sIdx] = { ...next[sIdx]!, steps: sourceSteps };
+
+  // Si on déplace dans la même story (cas dégénéré : drop sur soi-même),
+  // sourceSteps contient déjà l'entrée moved retirée — on travaille
+  // dessus pour l'insertion.
+  const targetSteps = sIdx === tIdx ? sourceSteps : [...next[tIdx]!.steps];
+  const targetStepIdx = targetSteps.findIndex((s) => s.id === payload.targetStepId);
+  if (targetStepIdx < 0) targetSteps.push(moved);
+  else targetSteps.splice(payload.mode === 'before' ? targetStepIdx : targetStepIdx + 1, 0, moved);
+  next[tIdx] = { ...next[tIdx]!, steps: targetSteps };
+
+  void commit({ stories: next });
+}
+
 async function promoteToDispositif(payload: { title: string; description: string }): Promise<void> {
   if (!ensureEditOrModal()) return;
   const raw = (dispStore.data as { dispositifs?: unknown[]; meta?: unknown } | null) ?? {
@@ -391,6 +428,7 @@ const filteredStories = computed(() => {
         @pick-screen="
           (stepId, branchId, subStepId) => openPicker(story.id, stepId, branchId, subStepId)
         "
+        @cross-move="(payload) => onCrossMove({ ...payload, targetStoryId: story.id })"
         @edit-attempt="ensureEditOrModal"
       />
     </div>

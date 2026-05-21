@@ -37,12 +37,28 @@ const props = defineProps<{
   readonly steps: readonly Step[];
   readonly canEdit: boolean;
   readonly resolveScreen: ScreenResolver;
+  /** ID de la user story qui contient ce rail — sert au drag cross-parcours. */
+  readonly storyId: string;
 }>();
 
 const emit = defineEmits<{
   (e: 'change', steps: Step[]): void;
   (e: 'pick-screen', stepId: string, branchId: string | null, subStepId: string | null): void;
   (e: 'edit-attempt'): void;
+  /**
+   * Drop venu d'une autre story. Le parent (page) orchestre le retrait
+   * dans la story source et l'insertion ici. Limité au rail principal
+   * (cross-story-cross-scope volontairement bloqué).
+   */
+  (
+    e: 'cross-move',
+    payload: {
+      sourceStoryId: string;
+      sourceStepId: string;
+      targetStepId: string;
+      mode: 'before' | 'after';
+    },
+  ): void;
 }>();
 
 function cloneSteps(): MStep[] {
@@ -98,6 +114,7 @@ function moveStep(id: string, dir: -1 | 1): void {
 const DRAG_MIME = 'application/x-parcours-step';
 
 interface DragPayload {
+  storyId: string;
   stepId: string;
   branchId: string | null;
 }
@@ -153,8 +170,21 @@ function onDrop(e: DragEvent, targetId: string, targetBranchId: string | null): 
   } catch {
     return;
   }
-  if (src.stepId === targetId) return;
-  // En v1, on bloque le cross-scope (cf. note ci-dessus).
+  if (src.stepId === targetId && src.storyId === props.storyId) return;
+
+  // Cross-story : seulement rail → rail, géré par le parent (page).
+  if (src.storyId !== props.storyId) {
+    if (src.branchId !== null || targetBranchId !== null) return;
+    emit('cross-move', {
+      sourceStoryId: src.storyId,
+      sourceStepId: src.stepId,
+      targetStepId: targetId,
+      mode,
+    });
+    return;
+  }
+
+  // Intra-story : on bloque le cross-scope (rail↔branche).
   if (src.branchId !== targetBranchId) return;
 
   if (targetBranchId === null) {
@@ -287,7 +317,7 @@ function setSubStepField(
           <div
             class="rail__step-wrap"
             :draggable="canEdit"
-            @dragstart="startDrag($event, { stepId: step.id, branchId: null })"
+            @dragstart="startDrag($event, { storyId, stepId: step.id, branchId: null })"
             @dragover="onDragOver"
             @dragleave="onDragLeave"
             @drop="onDrop($event, step.id, null)"
@@ -356,7 +386,7 @@ function setSubStepField(
                   <div
                     class="rail__step-wrap rail__step-wrap--sub"
                     :draggable="canEdit"
-                    @dragstart="startDrag($event, { stepId: sub.id, branchId: branch.id })"
+                    @dragstart="startDrag($event, { storyId, stepId: sub.id, branchId: branch.id })"
                     @dragover="onDragOver"
                     @dragleave="onDragLeave"
                     @drop="onDrop($event, sub.id, branch.id)"

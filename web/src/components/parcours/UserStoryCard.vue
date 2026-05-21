@@ -30,6 +30,16 @@ const emit = defineEmits<{
   (e: 'remove'): void;
   (e: 'pick-screen', stepId: string, branchId: string | null, subStepId: string | null): void;
   (e: 'edit-attempt'): void;
+  /** Drop venu d'une autre story — relayé tel quel vers la page parente. */
+  (
+    e: 'cross-move',
+    payload: {
+      sourceStoryId: string;
+      sourceStepId: string;
+      targetStepId: string;
+      mode: 'before' | 'after';
+    },
+  ): void;
 }>();
 
 const open = ref(props.defaultOpen ?? true);
@@ -148,6 +158,7 @@ const stepCount = computed(() => {
       </summary>
       <div class="story-card__rail">
         <StoryStepRail
+          :story-id="story.id"
           :steps="story.steps"
           :can-edit="canEdit"
           :resolve-screen="resolveScreen"
@@ -155,6 +166,7 @@ const stepCount = computed(() => {
           @pick-screen="
             (stepId, branchId, subStepId) => emit('pick-screen', stepId, branchId, subStepId)
           "
+          @cross-move="(payload) => emit('cross-move', payload)"
           @edit-attempt="emit('edit-attempt')"
         />
       </div>
