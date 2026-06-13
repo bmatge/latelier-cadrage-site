@@ -86,7 +86,7 @@ export async function createSmtpMailer(config: SmtpConfig): Promise<Mailer> {
           from,
           to,
           ...(config.replyTo ? { replyTo: config.replyTo } : {}),
-          subject: "L'atelier 🪢 — votre lien de connexion",
+          subject: "Votre lien de connexion à L'atelier",
           text:
             `Bonjour,\n\nVoici votre lien de connexion à L'atelier (valide ~15 minutes) :\n\n${callbackUrl}\n\n` +
             "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.",

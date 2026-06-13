@@ -33,7 +33,7 @@ services:
       # L'expéditeur DOIT être @miweb.run pour que le smtp-relay le signe en
       # DKIM (ALLOWED_SENDER_DOMAINS=miweb.run).
       - SMTP_FROM=${SMTP_FROM:-latelier-noreply@miweb.run}
-      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-L'atelier 🪢}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-L'atelier}
       - SMTP_REPLY_TO=${SMTP_REPLY_TO:-}
       # POC cadrage IA via Albert (DINUM). Désactivé par défaut. Pour activer
       # en prod : CADRAGE_ENABLED=1 + ALBERT_API_URL + ALBERT_API_KEY dans
