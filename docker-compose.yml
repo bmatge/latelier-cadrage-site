@@ -1,38 +1,43 @@
+# Contrat de déploiement agnostique VibeLab.
+#
+# APP_NAME et DOMAIN sont fournis par l'orchestrateur (spawn) à l'exécution ;
+# le backend mail aussi (MAIL_HOST/MAIL_PORT) : `spawn --mail` → Mailpit
+# (catcher de dev), `spawn --mail real` → smtp-relay (envoi réel signé DKIM
+# @miweb.run). Aucun domaine, réseau interne ni hébergeur n'est codé en dur.
+# Les valeurs par défaut permettent un `docker compose up` autonome en local.
+#
+# Le service principal s'appelle `web` (contrat vibelab-starter : port interne
+# 3000, pas de `ports:`, exposition uniquement via Traefik sur le réseau proxy).
 services:
-  app:
+  web:
     build: .
     image: latelier-cadrage-site:latest
-    container_name: latelier-cadrage-site
     restart: unless-stopped
     environment:
       - NODE_ENV=production
       - PORT=3000
       - DB_PATH=/data/app.db
       - LOG_LEVEL=info
-      # Bootstrap admin : ces emails reçoivent un grant `admin global` au
-      # boot (idempotent). Indispensable pour la première instance —
-      # sinon /admin est inaccessible (self-signup donne `viewer`).
+      # Bootstrap admin : ces emails reçoivent un grant `admin global` au boot
+      # (idempotent). Indispensable pour la première instance — sinon /admin
+      # est inaccessible (self-signup donne `viewer`).
       - BOOTSTRAP_ADMIN_EMAILS=${BOOTSTRAP_ADMIN_EMAILS:-}
-      # Mail : on relaie via le mailserver de l'écosystème g3 (container
-      # `ecosystem-mailserver` sur le réseau partagé `ecosystem-network`).
-      # `PERMIT_DOCKER: network` côté g3 autorise l'envoi sans creds depuis
-      # le réseau interne. DKIM/SPF/DMARC sont alignés sur
-      # `ecosysteme.matge.com`, donc on envoie depuis cette zone même si
-      # l'app vit sur latelier.bercy.matge.com.
+      # Mail : SMTP_HOST/PORT sont injectés par l'orchestrateur via
+      # MAIL_HOST/MAIL_PORT. `--mail` → mailer:1025 (Mailpit) ; `--mail real`
+      # → smtp-relay:25 (Postfix+OpenDKIM, From signé @miweb.run). En local
+      # sans spawn, défaut Mailpit.
       - MAILER_DRIVER=smtp
-      - SMTP_HOST=${SMTP_HOST:-ecosystem-mailserver}
-      - SMTP_PORT=${SMTP_PORT:-25}
+      - SMTP_HOST=${MAIL_HOST:-mailer}
+      - SMTP_PORT=${MAIL_PORT:-1025}
       - SMTP_SECURE=${SMTP_SECURE:-false}
-      - SMTP_FROM=${SMTP_FROM:-latelier-noreply@ecosysteme.matge.com}
+      # L'expéditeur DOIT être @miweb.run pour que le smtp-relay le signe en
+      # DKIM (ALLOWED_SENDER_DOMAINS=miweb.run).
+      - SMTP_FROM=${SMTP_FROM:-latelier-noreply@miweb.run}
       - SMTP_FROM_NAME=${SMTP_FROM_NAME:-L'atelier 🪢}
-      # Reply-To optionnel : si défini, une réponse à un magic link arrive
-      # ici plutôt que sur la boîte technique latelier-noreply. À mettre
-      # dans `.env` du VPS (souvent personnel, ex. bertrand@matge.com).
       - SMTP_REPLY_TO=${SMTP_REPLY_TO:-}
       # POC cadrage IA via Albert (DINUM). Désactivé par défaut. Pour activer
-      # en prod : mettre CADRAGE_ENABLED=1 + ALBERT_API_URL + ALBERT_API_KEY
-      # dans `.env` du VPS. La route /api/cadrage/* n'est mountée que si le
-      # flag vaut '1' (sinon 404 silencieux, bouton UI caché).
+      # en prod : CADRAGE_ENABLED=1 + ALBERT_API_URL + ALBERT_API_KEY dans
+      # le `.env` du VPS.
       - CADRAGE_ENABLED=${CADRAGE_ENABLED:-0}
       - ALBERT_API_URL=${ALBERT_API_URL:-}
       - ALBERT_API_KEY=${ALBERT_API_KEY:-}
@@ -41,40 +46,15 @@ services:
     volumes:
       - app-data:/data
     networks:
-      - ecosystem-network
+      - default
+      - proxy
     labels:
       - traefik.enable=true
-      - traefik.docker.network=ecosystem-network
-
-      # --- App principale : ${DOMAIN:-latelier.bercy.matge.com} ---
-      - traefik.http.routers.latelier.rule=Host(`${DOMAIN:-latelier.bercy.matge.com}`)
-      - traefik.http.routers.latelier.entrypoints=${WEBSECURE_ENTRYPOINT:-websecure}
-      - traefik.http.routers.latelier.tls=true
-      - traefik.http.routers.latelier.tls.certresolver=${CERT_RESOLVER:-letsencrypt}
-      - traefik.http.services.latelier.loadbalancer.server.port=3000
-
-      # HTTP → HTTPS sur le domaine principal
-      - traefik.http.routers.latelier-http.rule=Host(`${DOMAIN:-latelier.bercy.matge.com}`)
-      - traefik.http.routers.latelier-http.entrypoints=${WEB_ENTRYPOINT:-web}
-      - traefik.http.routers.latelier-http.middlewares=latelier-https-redirect
-      - traefik.http.middlewares.latelier-https-redirect.redirectscheme.scheme=https
-      - traefik.http.middlewares.latelier-https-redirect.redirectscheme.permanent=true
-
-      # --- Legacy : redirection 301 depuis ${LEGACY_DOMAIN:-portail-elec.matge.com} ---
-      - traefik.http.routers.latelier-legacy.rule=Host(`${LEGACY_DOMAIN:-portail-elec.matge.com}`)
-      - traefik.http.routers.latelier-legacy.entrypoints=${WEBSECURE_ENTRYPOINT:-websecure}
-      - traefik.http.routers.latelier-legacy.tls=true
-      - traefik.http.routers.latelier-legacy.tls.certresolver=${CERT_RESOLVER:-letsencrypt}
-      - traefik.http.routers.latelier-legacy.service=latelier
-      - traefik.http.routers.latelier-legacy.middlewares=latelier-legacy-redirect
-      - traefik.http.middlewares.latelier-legacy-redirect.redirectregex.regex=^https?://[^/]+/(.*)
-      - traefik.http.middlewares.latelier-legacy-redirect.redirectregex.replacement=https://${DOMAIN:-latelier.bercy.matge.com}/$${1}
-      - traefik.http.middlewares.latelier-legacy-redirect.redirectregex.permanent=true
-
-      # HTTP → HTTPS sur l'ancien domaine (puis le 301 prend le relais)
-      - traefik.http.routers.latelier-legacy-http.rule=Host(`${LEGACY_DOMAIN:-portail-elec.matge.com}`)
-      - traefik.http.routers.latelier-legacy-http.entrypoints=${WEB_ENTRYPOINT:-web}
-      - traefik.http.routers.latelier-legacy-http.middlewares=latelier-https-redirect
+      - traefik.docker.network=proxy
+      - traefik.http.routers.${APP_NAME:-latelier}.rule=Host(`${DOMAIN:-latelier.localhost}`)
+      - traefik.http.routers.${APP_NAME:-latelier}.entrypoints=websecure
+      - traefik.http.routers.${APP_NAME:-latelier}.tls.certresolver=letsencrypt
+      - traefik.http.services.${APP_NAME:-latelier}.loadbalancer.server.port=3000
 
   # Sidecar backup : `sqlite3 .backup` quotidien à 03:00, rétention
   # configurable via BACKUP_RETENTION_DAYS (défaut 30). Lit la DB en
@@ -82,10 +62,9 @@ services:
   # WAL de l'app. Cf. docs/ops/sqlite.md.
   backup:
     image: alpine:3.20
-    container_name: latelier-cadrage-site-backup
     restart: unless-stopped
     depends_on:
-      - app
+      - web
     environment:
       - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
     volumes:
@@ -103,5 +82,6 @@ volumes:
   backup-data:
 
 networks:
-  ecosystem-network:
+  # Réseau d'entrée HTTP fourni par la plateforme hôte (externe).
+  proxy:
     external: true
