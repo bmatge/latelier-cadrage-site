@@ -19,6 +19,17 @@ const EnvSchema = z.object({
    *  déjà. Utile pour le bootstrap initial (sinon il n'y a aucun admin
    *  dans la DB et la page /admin est inaccessible). */
   BOOTSTRAP_ADMIN_EMAILS: z.string().default(''),
+  /** Mode d'authentification.
+   *  - 'local' : magic-link interne (défaut, comportement historique).
+   *  - 'proxy' : l'app est derrière un proxy d'auth de confiance (le gate du lab,
+   *    ADR-062) qui injecte l'email authentifié dans l'en-tête PROXY_AUTH_HEADER.
+   *    L'app fait confiance à cet en-tête (Traefik l'écrase autoritairement sur
+   *    chaque 200, et l'app n'est joignable que derrière le gate), désactive son
+   *    magic-link interne et identifie l'utilisateur par email. Cf. ADR-060. */
+  AUTH_MODE: z.enum(['local', 'proxy']).default('local'),
+  /** En-tête de confiance lu en mode proxy. Doit être posé autoritairement par le
+   *  proxy amont (gate : authResponseHeaders X-Gate-Email). Comparé en minuscules. */
+  PROXY_AUTH_HEADER: z.string().min(1).default('x-gate-email'),
 });
 
 export type Config = z.infer<typeof EnvSchema>;

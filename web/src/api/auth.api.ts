@@ -9,6 +9,16 @@ export interface MeUser {
   readonly roles: readonly { readonly role: Role; readonly projectId: number | null }[];
 }
 
+/** Mode d'authentification du backend (exposé par GET /api/me).
+ *  - 'local' : magic-link interne (défaut historique).
+ *  - 'proxy' : auth déléguée au gate du lab (ADR-062) — l'UI masque login/logout. */
+export type AuthMode = 'local' | 'proxy';
+
+export interface MeResponse {
+  readonly user: MeUser | null;
+  readonly authMode: AuthMode;
+}
+
 export async function requestMagicLink(email: string): Promise<void> {
   await api.post('/auth/magic-link', { email });
 }
@@ -20,10 +30,11 @@ export async function consumeCallback(
   return res.data as { user_id: number; expires_at: string; created: boolean };
 }
 
-export async function fetchMe(): Promise<MeUser | null> {
+export async function fetchMe(): Promise<MeResponse> {
   try {
     const res = await api.get('/me');
-    return (res.data as { user: MeUser }).user;
+    const data = res.data as { user: MeUser; auth_mode?: AuthMode };
+    return { user: data.user, authMode: data.auth_mode ?? 'local' };
   } catch (err) {
     // Tout statut autre que 200 ⇒ pas de user. On loggue les 5xx pour
     // qu'ils restent visibles en console, mais on ne bloque pas le boot
@@ -33,7 +44,11 @@ export async function fetchMe(): Promise<MeUser | null> {
     if (e.response?.status && e.response.status >= 500) {
       console.error('[auth.fetchMe] server error', e.response.status, e.response.data);
     }
-    return null;
+    // 401 sans user : le backend ne joint pas auth_mode (corps strict
+    // { error }). En mode proxy l'app n'est joignable que derrière le gate,
+    // donc /api/me est toujours authentifié → ce cas ne survient qu'en local
+    // hors-gate : défaut 'local' sans incidence (login affiché, normal).
+    return { user: null, authMode: 'local' };
   }
 }
 

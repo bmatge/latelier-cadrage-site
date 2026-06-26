@@ -83,7 +83,10 @@ const triggerLabel = computed(() => auth.user?.display_name ?? 'Mon espace');
         </p>
       </section>
 
-      <footer class="user-menu__footer">
+      <!-- Mode proxy (ADR-062) : la session est tenue par le gate du lab, pas
+           par l'app → pas de bouton « Se déconnecter » (il ne révoquerait rien
+           côté gate). En mode local, déconnexion classique. -->
+      <footer v-if="!auth.isProxyMode" class="user-menu__footer">
         <button
           type="button"
           class="fr-btn fr-btn--secondary fr-btn--sm fr-icon-logout-box-r-line fr-btn--icon-left"

@@ -25,6 +25,26 @@ export interface OnboardResult {
   readonly created: boolean;
 }
 
+/**
+ * Mode proxy (ADR-062) : résout l'utilisateur à partir de l'email injecté par le
+ * proxy d'auth amont (gate). Find-or-create léger — SANS upsert d'identité locale
+ * (le magic-link interne est désactivé en mode proxy), pour éviter une écriture
+ * superflue à chaque requête sur un utilisateur déjà connu. Rôle par défaut viewer
+ * à la création ; un email de BOOTSTRAP_ADMIN_EMAILS sera promu admin au boot.
+ */
+export async function resolveProxyUser(k: Kdb, email: string): Promise<OnboardResult> {
+  const existing = await findUserByEmail(k, email);
+  if (existing) {
+    return { userId: existing.id, displayName: existing.display_name, email, created: false };
+  }
+  const created = await createUserWithEmail(k, {
+    email,
+    displayName: displayNameFromEmail(email),
+  });
+  await grantRole(k, created.id, 'viewer', null, null);
+  return { userId: created.id, displayName: created.display_name, email, created: true };
+}
+
 export async function onboardOrFindUser(k: Kdb, email: string): Promise<OnboardResult> {
   const existing = await findUserByEmail(k, email);
   if (existing) {
