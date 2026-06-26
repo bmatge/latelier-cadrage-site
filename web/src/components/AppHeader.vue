@@ -74,7 +74,10 @@ const projectTabs = [
                 <li v-if="auth.user">
                   <UserMenu />
                 </li>
-                <li v-else>
+                <!-- Mode proxy (ADR-062) : auth gérée par le gate du lab,
+                     le magic-link interne est désactivé → on n'affiche pas
+                     « S'identifier » (mènerait à un formulaire qui renvoie 410). -->
+                <li v-else-if="!auth.isProxyMode">
                   <RouterLink
                     class="fr-btn fr-btn--tertiary fr-btn--sm fr-icon-account-line fr-btn--icon-left"
                     to="/login"

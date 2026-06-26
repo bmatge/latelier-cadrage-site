@@ -22,6 +22,12 @@ services:
       # (idempotent). Indispensable pour la première instance — sinon /admin
       # est inaccessible (self-signup donne `viewer`).
       - BOOTSTRAP_ADMIN_EMAILS=${BOOTSTRAP_ADMIN_EMAILS:-}
+      # Auth : 'local' (magic-link interne, défaut) ou 'proxy'. En 'proxy'
+      # (ADR-062), l'app fait confiance à l'en-tête PROXY_AUTH_HEADER posé par
+      # le gate du lab en amont (`spawn up <nom> --auth link`) et désactive son
+      # magic-link interne. Posé via le `.env` du VPS (AUTH_MODE=proxy).
+      - AUTH_MODE=${AUTH_MODE:-local}
+      - PROXY_AUTH_HEADER=${PROXY_AUTH_HEADER:-x-gate-email}
       # Mail : SMTP_HOST/PORT sont injectés par l'orchestrateur via
       # MAIL_HOST/MAIL_PORT. `--mail` → mailer:1025 (Mailpit) ; `--mail real`
       # → smtp-relay:25 (Postfix+OpenDKIM, From signé @miweb.run). En local
