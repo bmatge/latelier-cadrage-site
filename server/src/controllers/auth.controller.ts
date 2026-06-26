@@ -7,6 +7,7 @@ import type { Mailer } from '../services/mailer.service.js';
 import { SESSION_COOKIE_NAME } from '../middleware/attach-user.js';
 import { asyncH } from '../middleware/async-handler.js';
 import { CallbackQuerySchema, MagicLinkRequestSchema } from '../schemas/auth.schemas.js';
+import { loadConfig } from '../config/env.js';
 
 const COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 jours
 
@@ -53,8 +54,17 @@ export function makeAuthController(opts: MakeAuthControllerOptions): {
   logoutAll: RequestHandler;
   me: RequestHandler;
 } {
+  const config = loadConfig();
   return {
     requestMagicLink: asyncH(async (req, res) => {
+      // Mode proxy (ADR-062) : le magic-link interne est désactivé, l'auth est
+      // assurée par le gate du lab en amont. On répond 410 explicitement.
+      if (config.AUTH_MODE === 'proxy') {
+        res
+          .status(410)
+          .json({ error: 'magic_link_disabled', message: 'Authentification gérée par le lab.' });
+        return;
+      }
       // Validation explicite ici (sans validateBody) pour pouvoir réponde
       // 204 même si l'email est invalide (anti-énumération minimal).
       const parsed = MagicLinkRequestSchema.safeParse(req.body);
@@ -77,6 +87,12 @@ export function makeAuthController(opts: MakeAuthControllerOptions): {
       res.status(204).end();
     }),
     callback: asyncH(async (req, res) => {
+      // Mode proxy : aucun magic-link interne émis → tout callback est caduc,
+      // on renvoie simplement à la home (le gate a déjà authentifié).
+      if (config.AUTH_MODE === 'proxy') {
+        res.redirect(303, '/');
+        return;
+      }
       const wantsJson = (req.get('accept') ?? '').includes('application/json');
       const parsed = CallbackQuerySchema.safeParse(req.query);
       if (!parsed.success) {
@@ -149,6 +165,7 @@ export function makeAuthController(opts: MakeAuthControllerOptions): {
         return;
       }
       res.json({
+        auth_mode: config.AUTH_MODE,
         user: {
           id: req.user.id,
           display_name: req.user.display_name,
