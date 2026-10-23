@@ -5,7 +5,7 @@
   "description": "L'atelier 🪢 — refacto v2 : monorepo TypeScript (shared + server + web).",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "workspaces": [
     "shared",

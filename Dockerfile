@@ -3,7 +3,7 @@
 # compilé + node_modules prod, sans les sources TS ni les tests).
 
 # -------- Stage 1 : deps (full, build et runtime confondus) -------------
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 
 WORKDIR /app
 
@@ -37,7 +37,7 @@ RUN npm run build -w @latelier/shared \
  && npm run build -w @latelier/web
 
 # -------- Stage 3 : runtime (slim) --------------------------------------
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 
 RUN apk add --no-cache tini && \
     addgroup -g 1001 app && adduser -u 1001 -G app -D app
